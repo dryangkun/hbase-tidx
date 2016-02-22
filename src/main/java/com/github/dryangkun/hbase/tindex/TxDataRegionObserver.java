@@ -2,7 +2,6 @@ package com.github.dryangkun.hbase.tindex;
 
 import com.sun.org.apache.commons.logging.Log;
 import com.sun.org.apache.commons.logging.LogFactory;
-import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
@@ -71,7 +70,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
             String timeColumn = conf.get(TxConstants.DATA_OBSERV_ARG_TIME_COLUMN);
             LOG.debug("data observer argument " + TxConstants.DATA_OBSERV_ARG_TIME_COLUMN +
                     " = " + timeColumn);
-            if (StringUtils.isEmpty(timeColumn)) {
+            if (TxUtils.isEmpty(timeColumn)) {
                 throw new IOException("data observer argument " +
                         TxConstants.DATA_OBSERV_ARG_TIME_COLUMN + " missed");
             }
@@ -89,7 +88,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
             String indexIdStr = conf.get(TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID);
             LOG.debug("data observer argument " + TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID +
                     " = " + indexIdStr);
-            if (StringUtils.isEmpty(indexIdStr)) {
+            if (TxUtils.isEmpty(indexIdStr)) {
                 throw new IOException("data observer argument " +
                         TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID + " missed");
             }
