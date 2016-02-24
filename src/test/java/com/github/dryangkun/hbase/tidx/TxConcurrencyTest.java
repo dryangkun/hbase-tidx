@@ -1,7 +1,6 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hbase.client.HConnection;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.util.Bytes;

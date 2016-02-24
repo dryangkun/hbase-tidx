@@ -17,7 +17,6 @@
       <groupId>org.apache.phoenix</groupId>
       <artifactId>phoenix-core</artifactId>
       <version>${phoenix.version}</version>
-      <scope>provided</scope>
     </dependency>
   </dependencies>
 

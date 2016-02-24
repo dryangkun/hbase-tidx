@@ -1,4 +1,4 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import com.sun.org.apache.commons.logging.Log;
 import com.sun.org.apache.commons.logging.LogFactory;
@@ -61,17 +61,17 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         Configuration conf = e.getConfiguration();
 
         {
-            String timeColumn = conf.get(TxConstants.DATA_OBSERV_ARG_TIME_COLUMN);
-            LOG.debug("data observer argument " + TxConstants.DATA_OBSERV_ARG_TIME_COLUMN +
+            String timeColumn = conf.get(TxConstants.DOBSERVER_ARG_TIME_COLUMN);
+            LOG.debug("data observer argument " + TxConstants.DOBSERVER_ARG_TIME_COLUMN +
                     " = " + timeColumn);
             if (TxUtils.isEmpty(timeColumn)) {
                 throw new IOException("data observer argument " +
-                        TxConstants.DATA_OBSERV_ARG_TIME_COLUMN + " missed");
+                        TxConstants.DOBSERVER_ARG_TIME_COLUMN + " missed");
             }
 
             String[] items = timeColumn.split(":", 2);
             if (items.length != 2) {
-                throw new IOException(TxConstants.DATA_OBSERV_ARG_TIME_COLUMN + "=" +
+                throw new IOException(TxConstants.DOBSERVER_ARG_TIME_COLUMN + "=" +
                         timeColumn + " invalid(family:qualifier)");
             }
             timeFamily = items[0].getBytes();
@@ -79,12 +79,12 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         }
 
         {
-            String indexIdStr = conf.get(TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID);
-            LOG.debug("data observer argument " + TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID +
+            String indexIdStr = conf.get(TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID);
+            LOG.debug("data observer argument " + TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID +
                     " = " + indexIdStr);
             if (TxUtils.isEmpty(indexIdStr)) {
                 throw new IOException("data observer argument " +
-                        TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID + " missed");
+                        TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID + " missed");
             }
 
             short indexId;
@@ -92,7 +92,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                 indexId = Short.parseShort(indexIdStr);
             } catch (NumberFormatException ex) {
                 throw new IOException("data observer argument " +
-                        TxConstants.DATA_OBSERV_ARG_PHOENIX_INDEX_ID + " is invalid", ex);
+                        TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID + " is invalid", ex);
             }
             phoenixIndexId = indexId;
         }
@@ -315,7 +315,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                         TxConstants.PHOENIX_INDEX_FAMILY,
                         TxConstants.PHOENIX_INDEX_QUALIFIER,
                         cell.getTimestamp(),
-                        TxConstants.EMPTY_BYTES);
+                        HConstants.EMPTY_BYTE_ARRAY);
                 indexPut.setDurability(p.getDurability());
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("putting the cell " + indexPut + " to index region " + iri.getRegionNameAsString());

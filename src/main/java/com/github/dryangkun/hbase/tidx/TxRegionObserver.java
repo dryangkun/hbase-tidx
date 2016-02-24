@@ -1,4 +1,4 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
@@ -10,7 +10,7 @@ public class TxRegionObserver extends BaseScannerRegionObserver {
 
     @Override
     protected boolean isRegionObserverFor(Scan scan) {
-        return false;
+        return scan.getAttribute(TxConstants.IOBSERVER_CONF_SCAN_DATA) != null;
     }
 
     @Override

@@ -1,4 +1,4 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.util.Bytes;

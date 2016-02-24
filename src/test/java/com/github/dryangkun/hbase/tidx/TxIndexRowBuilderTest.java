@@ -1,13 +1,8 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.phoenix.schema.types.PDecimal;
-import org.apache.phoenix.schema.types.PUnsignedSmallint;
-import org.apache.phoenix.util.MetaDataUtil;
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.math.BigDecimal;
 
 public class TxIndexRowBuilderTest {
 

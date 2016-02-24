@@ -1,4 +1,4 @@
-package com.github.dryangkun.hbase.tindex;
+package com.github.dryangkun.hbase.tidx;
 
 import org.apache.phoenix.query.QueryConstants;
 import org.apache.phoenix.schema.types.PDecimal;
