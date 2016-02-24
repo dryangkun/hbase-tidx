@@ -5,8 +5,14 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.github.dryangkun</groupId>
-  <artifactId>hbase-tindex</artifactId>
+  <artifactId>hbase-tidx</artifactId>
   <version>0.1.0-phoenix4.4.x</version>
+  <packaging>pom</packaging>
+
+  <modules>
+    <module>tidx-core</module>
+    <module>tidx-hive-hbase-integration</module>
+  </modules>
 
   <properties>
     <phoenix.version>4.4.0-HBase-0.98</phoenix.version>
