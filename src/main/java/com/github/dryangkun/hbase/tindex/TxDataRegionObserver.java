@@ -7,10 +7,7 @@ import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
-import org.apache.hadoop.hbase.client.Delete;
-import org.apache.hadoop.hbase.client.Get;
-import org.apache.hadoop.hbase.client.Mutation;
-import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.*;
 import org.apache.hadoop.hbase.coprocessor.BaseRegionObserver;
 import org.apache.hadoop.hbase.coprocessor.ObserverContext;
 import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
@@ -18,6 +15,7 @@ import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.MiniBatchOperationInProgress;
 import org.apache.hadoop.hbase.regionserver.OperationStatus;
 import org.apache.hadoop.hbase.regionserver.RegionServerServices;
+import org.apache.hadoop.hbase.regionserver.wal.WALEdit;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.hbase.index.util.ImmutableBytesPtr;
 import org.apache.phoenix.util.IndexUtil;
@@ -34,19 +32,15 @@ public class TxDataRegionObserver extends BaseRegionObserver {
 
     private static final Log LOG = LogFactory.getLog(TxDataRegionObserver.class);
 
-    private static final ThreadLocal<Boolean> PASS = new ThreadLocal<Boolean>() {
-        @Override
-        protected Boolean initialValue() {
-            return false;
-        }
-    };
+    private static final ThreadLocal<RegionHolder> THREAD_REGION_HOLDER = new ThreadLocal<RegionHolder>();
 
     private static class RegionHolder {
         final ReentrantLock lock = new ReentrantLock();
         final String indexRegionName;
         final TxIndexRowBuilder indexRowBuilder;
 
-        volatile boolean stopUnLock = false;
+        volatile boolean inPreBatchMutate = false;
+
         Map<ImmutableBytesPtr, TxPut> puts;
         Map<ImmutableBytesPtr, TxDelete> deletes;
 
@@ -56,11 +50,11 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         }
     }
 
+    private final Map<Long, RegionHolder> regionHolders = new ConcurrentHashMap<Long, RegionHolder>();
+
     private byte[] timeFamily;
     private byte[] timeQualifier;
     private short phoenixIndexId;
-
-    private final Map<Long, RegionHolder> regionHolders = new ConcurrentHashMap<Long, RegionHolder>();
 
     @Override
     public void start(CoprocessorEnvironment e) throws IOException {
@@ -151,44 +145,84 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         }
     }
 
-    @Override
-    public void preBatchMutate(ObserverContext<RegionCoprocessorEnvironment> c, MiniBatchOperationInProgress<Mutation> miniBatchOp) throws IOException {
-        HRegion region = (HRegion) c.getEnvironment().getRegion();
-        HRegionInfo ri = region.getRegionInfo();
-        long regionId = ri.getRegionId();
-
-        RegionHolder regionHolder = regionHolders.get(regionId);
+    private RegionHolder getRegionHolder(HRegionInfo ri, ObserverContext<RegionCoprocessorEnvironment> c) throws IOException {
+        RegionHolder regionHolder = regionHolders.get(ri.getRegionId());
         if (regionHolder == null) {
             synchronized (regionHolders) {
-                if ((regionHolder = regionHolders.get(regionId)) == null) {
+                if ((regionHolder = regionHolders.get(ri.getRegionId())) == null) {
                     LOG.debug("initialize RegionHolder for the region " + ri.getRegionNameAsString());
-
                     HRegion indexRegion = (HRegion) IndexUtil.getIndexRegion(c.getEnvironment());
+                    if (indexRegion == null) {
+                        return null;
+                    }
                     HRegionInfo iri = indexRegion.getRegionInfo();
 
                     regionHolder = new RegionHolder(iri.getEncodedName(),
                             new TxIndexRowBuilder(iri.getStartKey(), iri.getEndKey(), phoenixIndexId));
-                    regionHolders.put(regionId, regionHolder);
+                    regionHolders.put(ri.getRegionId(), regionHolder);
                 }
             }
         }
+        return regionHolder;
+    }
+
+    private void initBatchMutation(ObserverContext<RegionCoprocessorEnvironment> c) throws IOException {
+        RegionHolder regionHolder = THREAD_REGION_HOLDER.get();
+        if (regionHolder == null) {
+            HRegion region = (HRegion) c.getEnvironment().getRegion();
+            HRegionInfo ri = region.getRegionInfo();
+
+            regionHolder = getRegionHolder(ri, c);
+            if (regionHolder == null) {
+                return;
+            }
+
+            RegionServerServices rss = c.getEnvironment().getRegionServerServices();
+            if (rss.getFromOnlineRegions(regionHolder.indexRegionName) == null) {
+                return;
+            }
+
+            regionHolder.lock.lock();
+            THREAD_REGION_HOLDER.set(regionHolder);
+        }
+    }
+
+    @Override
+    public void prePut(ObserverContext<RegionCoprocessorEnvironment> c, Put put, WALEdit edit, Durability durability) throws IOException {
+        initBatchMutation(c);
+    }
+
+    @Override
+    public void preDelete(ObserverContext<RegionCoprocessorEnvironment> c, Delete delete, WALEdit edit, Durability durability) throws IOException {
+        initBatchMutation(c);
+    }
+
+    @Override
+    public void preBatchMutate(ObserverContext<RegionCoprocessorEnvironment> c, MiniBatchOperationInProgress<Mutation> miniBatchOp) throws IOException {
+        RegionHolder regionHolder = THREAD_REGION_HOLDER.get();
+        if (regionHolder == null) {
+            return;
+        }
+
+        HRegion region = (HRegion) c.getEnvironment().getRegion();
+        HRegionInfo ri = region.getRegionInfo();
+
         RegionServerServices rss = c.getEnvironment().getRegionServerServices();
         if (rss.getFromOnlineRegions(regionHolder.indexRegionName) == null) {
             return;
         }
 
-        regionHolder.lock.lock();
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("locked the region " + ri.getRegionNameAsString());
-        }
-
         Map<ImmutableBytesPtr, TxPut> puts = new HashMap<ImmutableBytesPtr, TxPut>(miniBatchOp.size());
         Map<ImmutableBytesPtr, TxDelete> deletes = new HashMap<ImmutableBytesPtr, TxDelete>(miniBatchOp.size());
 
-        PASS.set(false);
-        regionHolder.stopUnLock = true;
+        regionHolder.inPreBatchMutate = true;
         try {
             for (int i = 0; i < miniBatchOp.size(); i++) {
+                OperationStatus s = miniBatchOp.getOperationStatus(i);
+                if (s.getOperationStatusCode() != HConstants.OperationStatusCode.NOT_RUN) {
+                    continue;
+                }
+
                 Mutation m = miniBatchOp.getOperation(i);
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("mutation " + m + " at preBatchMutate for region " + ri.getRegionNameAsString());
@@ -207,10 +241,6 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                         if (txPut == null) {
                             Cell tCell = getTimeRawCell(region, p.getRow());
                             txPut = new TxPut(p.getRow(), tCell, i, p.getTimeStamp());
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("get the old time " + txPut + " for put");
-                            }
-
                             puts.put(row, txPut);
                         } else {
                             txPut.merge(i, p.getTimeStamp());
@@ -228,10 +258,6 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                         if (txDelete == null) {
                             Cell tCell = getTimeRawCell(region, d.getRow());
                             txDelete = new TxDelete(d.getRow(), tCell, i);
-                            if (LOG.isDebugEnabled()) {
-                                LOG.debug("get the old time " + txDelete + " for delete");
-                            }
-
                             deletes.put(row, txDelete);
                         } else {
                             txDelete.addMIndex(i);
@@ -240,32 +266,18 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                 }
             }
         } finally {
-            regionHolder.stopUnLock = false;
+            regionHolder.inPreBatchMutate = false;
         }
-
-        if (puts.isEmpty() && deletes.isEmpty()) {
-            PASS.set(true);
-            regionHolder.lock.unlock();
-        } else {
-            regionHolder.puts = puts;
-            regionHolder.deletes = deletes;
-        }
+        regionHolder.puts = puts;
+        regionHolder.deletes = deletes;
     }
 
     @Override
-    public void postBatchMutate(ObserverContext<RegionCoprocessorEnvironment> c, MiniBatchOperationInProgress<Mutation> miniBatchOp) throws IOException {
-        if (PASS.get()) {
+    public void postBatchMutateIndispensably(ObserverContext<RegionCoprocessorEnvironment> c, MiniBatchOperationInProgress<Mutation> miniBatchOp, boolean success) throws IOException {
+        if (THREAD_REGION_HOLDER.get() == null) {
             return;
         }
-
-        HRegion region = (HRegion) c.getEnvironment().getRegion();
-        HRegionInfo ri = region.getRegionInfo();
-        long regionId = ri.getRegionId();
-
-        RegionHolder regionHolder = regionHolders.get(regionId);
-        if (regionHolder == null) {
-            return;
-        }
+        RegionHolder regionHolder = THREAD_REGION_HOLDER.get();
 
         RegionServerServices rss = c.getEnvironment().getRegionServerServices();
         HRegion indexRegion = (HRegion) rss.getFromOnlineRegions(regionHolder.indexRegionName);
@@ -284,22 +296,27 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         for (TxPut txPut : puts.values()) {
             OperationStatus s = miniBatchOp.getOperationStatus(txPut.getMaxMIndex());
             if (s.getOperationStatusCode() == HConstants.OperationStatusCode.SUCCESS) {
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("deleting the cell " + txPut + " from index region " + iri.getRegionNameAsString());
+                Put p = (Put) miniBatchOp.getOperation(txPut.getMaxMIndex());
+                Cell cell = p.get(timeFamily, timeQualifier).get(0);
+
+                if (cell.getTimestamp() < txPut.getTTimestamp()) {
+                    continue;
                 }
                 deleteTimeIndex(indexRegion, txPut, indexRowBuilder);
 
-                Put p = (Put) miniBatchOp.getOperation(txPut.getMaxMIndex());
-                Cell cell = p.get(timeFamily, timeQualifier).get(0);
-                long value = TxUtils.getTime(cell);
-                byte[] indexRow = indexRowBuilder.build(value, p.getRow());
-
+                byte[] indexRow = indexRowBuilder.build(TxUtils.getTime(cell), p.getRow());
+                {
+                    byte[] b = indexRowBuilder.build(txPut.getTValue(), txPut.getTRow());
+                    LOG.info("compare " + Bytes.toStringBinary(b) + "@" + txPut.getTTimestamp() +
+                            " to " + Bytes.toStringBinary(indexRow) + "@" + cell.getTimestamp());
+                }
                 Put indexPut = new Put(indexRow);
                 indexPut.add(
                         TxConstants.PHOENIX_INDEX_FAMILY,
                         TxConstants.PHOENIX_INDEX_QUALIFIER,
                         cell.getTimestamp(),
                         TxConstants.EMPTY_BYTES);
+                indexPut.setDurability(p.getDurability());
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("putting the cell " + indexPut + " to index region " + iri.getRegionNameAsString());
                 }
@@ -311,15 +328,18 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         }
 
         for (TxDelete txDelete : deletes.values()) {
-            boolean success = false;
+            boolean _success = false;
             for (Integer mIndex : txDelete.getMIndexes()) {
                 OperationStatus s = miniBatchOp.getOperationStatus(mIndex);
                 if (s.getOperationStatusCode() == HConstants.OperationStatusCode.SUCCESS) {
-                    success = true;
+                    _success = true;
                     break;
                 }
             }
-            if (success) {
+            if (_success) {
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("deleting the cell " + txDelete + " from index region " + iri.getRegionNameAsString());
+                }
                 deleteTimeIndex(indexRegion, txDelete, indexRowBuilder);
             } else {
                 LOG.warn("operation " + txDelete.getMIndexes() + " insuccess for " + txDelete);
@@ -329,22 +349,15 @@ public class TxDataRegionObserver extends BaseRegionObserver {
 
     @Override
     public void postCloseRegionOperation(ObserverContext<RegionCoprocessorEnvironment> c, HRegion.Operation op) throws IOException {
-        HRegion region = (HRegion) c.getEnvironment().getRegion();
-        long regionId = region.getRegionInfo().getRegionId();
-
-        RegionHolder regionHolder = regionHolders.get(regionId);
-        if (regionHolder != null && regionHolder.lock.isLocked() && !regionHolder.stopUnLock) {
-            if (regionHolder.puts != null) {
-                regionHolder.puts = null;
+        RegionHolder regionHolder = THREAD_REGION_HOLDER.get();
+        if (regionHolder != null) {
+            if (regionHolder.inPreBatchMutate) {
+                return;
             }
-            if (regionHolder.deletes != null) {
-                regionHolder.deletes = null;
-            }
-
+            regionHolder.puts = null;
+            regionHolder.deletes = null;
+            THREAD_REGION_HOLDER.set(null);
             regionHolder.lock.unlock();
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("unlock the region " + region.getRegionInfo().getRegionNameAsString());
-            }
         }
     }
 }

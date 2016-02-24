@@ -17,13 +17,13 @@ public class TxCell {
             this.tTimestamp = tCell.getTimestamp();
             this.tValue = TxUtils.getTime(tCell);
         } else {
-            this.tTimestamp = -100;
-            this.tValue = -100;
+            this.tTimestamp = -1;
+            this.tValue = -1;
         }
     }
 
     public boolean isEmpty() {
-        return tTimestamp == -100;
+        return tTimestamp == -1;
     }
 
     public byte[] getTRow() {
