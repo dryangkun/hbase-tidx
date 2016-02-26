@@ -37,16 +37,16 @@ public class TxDataRegionObserver extends BaseRegionObserver {
     private static class RegionHolder {
         final ReentrantLock lock = new ReentrantLock();
         final String indexRegionName;
-        final TxIndexRowBuilder indexRowBuilder;
+        final TxIndexRowCodec indexRowCodec;
 
         volatile boolean inPreBatchMutate = false;
 
         Map<ImmutableBytesPtr, TxPut> puts;
         Map<ImmutableBytesPtr, TxDelete> deletes;
 
-        public RegionHolder(String indexRegionName, TxIndexRowBuilder indexRowBuilder) {
+        public RegionHolder(String indexRegionName, TxIndexRowCodec indexRowCodec) {
             this.indexRegionName = indexRegionName;
-            this.indexRowBuilder = indexRowBuilder;
+            this.indexRowCodec = indexRowCodec;
         }
     }
 
@@ -60,42 +60,11 @@ public class TxDataRegionObserver extends BaseRegionObserver {
     public void start(CoprocessorEnvironment e) throws IOException {
         Configuration conf = e.getConfiguration();
 
-        {
-            String timeColumn = conf.get(TxConstants.DOBSERVER_ARG_TIME_COLUMN);
-            LOG.debug("data observer argument " + TxConstants.DOBSERVER_ARG_TIME_COLUMN +
-                    " = " + timeColumn);
-            if (TxUtils.isEmpty(timeColumn)) {
-                throw new IOException("data observer argument " +
-                        TxConstants.DOBSERVER_ARG_TIME_COLUMN + " missed");
-            }
+        String[] items = TxUtils.parseTimeColumn(conf, LOG);
+        timeFamily = items[0].getBytes();
+        timeQualifier = items[1].getBytes();
 
-            String[] items = timeColumn.split(":", 2);
-            if (items.length != 2) {
-                throw new IOException(TxConstants.DOBSERVER_ARG_TIME_COLUMN + "=" +
-                        timeColumn + " invalid(family:qualifier)");
-            }
-            timeFamily = items[0].getBytes();
-            timeQualifier = items[1].getBytes();
-        }
-
-        {
-            String indexIdStr = conf.get(TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID);
-            LOG.debug("data observer argument " + TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID +
-                    " = " + indexIdStr);
-            if (TxUtils.isEmpty(indexIdStr)) {
-                throw new IOException("data observer argument " +
-                        TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID + " missed");
-            }
-
-            short indexId;
-            try {
-                indexId = Short.parseShort(indexIdStr);
-            } catch (NumberFormatException ex) {
-                throw new IOException("data observer argument " +
-                        TxConstants.DOBSERVER_ARG_PHOENIX_INDEX_ID + " is invalid", ex);
-            }
-            phoenixIndexId = indexId;
-        }
+        phoenixIndexId = TxUtils.parsePhoenixIndexId(conf, LOG);
     }
 
     private boolean checkTimeColumn(Put put) {
@@ -133,9 +102,9 @@ public class TxDataRegionObserver extends BaseRegionObserver {
     }
 
     private void deleteTimeIndex(HRegion indexRegion,
-                                 TxCell cell, TxIndexRowBuilder indexRowBuilder) throws IOException {
+                                 TxCell cell, TxIndexRowCodec indexRowCodec) throws IOException {
         if (!cell.isEmpty()) {
-            byte[] indexRow = indexRowBuilder.build(cell.getTValue(), cell.getTRow());
+            byte[] indexRow = indexRowCodec.encode(cell.getTValue(), cell.getTRow());
             Delete indexDelete = new Delete(indexRow);
             indexDelete.deleteColumn(
                     TxConstants.PHOENIX_INDEX_FAMILY,
@@ -158,7 +127,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                     HRegionInfo iri = indexRegion.getRegionInfo();
 
                     regionHolder = new RegionHolder(iri.getEncodedName(),
-                            new TxIndexRowBuilder(iri.getStartKey(), iri.getEndKey(), phoenixIndexId));
+                            new TxIndexRowCodec(iri.getStartKey(), iri.getEndKey(), phoenixIndexId));
                     regionHolders.put(ri.getRegionId(), regionHolder);
                 }
             }
@@ -286,7 +255,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
         }
         HRegionInfo iri = indexRegion.getRegionInfo();
 
-        TxIndexRowBuilder indexRowBuilder = regionHolder.indexRowBuilder;
+        TxIndexRowCodec indexRowCodec = regionHolder.indexRowCodec;
         Map<ImmutableBytesPtr, TxPut> puts = regionHolder.puts;
         Map<ImmutableBytesPtr, TxDelete> deletes = regionHolder.deletes;
 
@@ -302,11 +271,11 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                 if (cell.getTimestamp() < txPut.getTTimestamp()) {
                     continue;
                 }
-                deleteTimeIndex(indexRegion, txPut, indexRowBuilder);
+                deleteTimeIndex(indexRegion, txPut, indexRowCodec);
 
-                byte[] indexRow = indexRowBuilder.build(TxUtils.getTime(cell), p.getRow());
+                byte[] indexRow = indexRowCodec.encode(TxUtils.getTime(cell), p.getRow());
                 {
-                    byte[] b = indexRowBuilder.build(txPut.getTValue(), txPut.getTRow());
+                    byte[] b = indexRowCodec.encode(txPut.getTValue(), txPut.getTRow());
                     LOG.info("compare " + Bytes.toStringBinary(b) + "@" + txPut.getTTimestamp() +
                             " to " + Bytes.toStringBinary(indexRow) + "@" + cell.getTimestamp());
                 }
@@ -340,7 +309,7 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("deleting the cell " + txDelete + " from index region " + iri.getRegionNameAsString());
                 }
-                deleteTimeIndex(indexRegion, txDelete, indexRowBuilder);
+                deleteTimeIndex(indexRegion, txDelete, indexRowCodec);
             } else {
                 LOG.warn("operation " + txDelete.getMIndexes() + " insuccess for " + txDelete);
             }

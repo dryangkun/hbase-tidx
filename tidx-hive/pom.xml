@@ -7,10 +7,10 @@
   <parent>
     <groupId>com.github.dryangkun</groupId>
     <artifactId>hbase-tidx</artifactId>
-    <version>0.1.0-phoenix4.4.x</version>
+    <version>0.1.0-phoenix4.4-hbase1.1</version>
   </parent>
 
-  <artifactId>tidx-hive-hbase-integration</artifactId>
+  <artifactId>hbase-tidx-hive</artifactId>
 
 
 </project>

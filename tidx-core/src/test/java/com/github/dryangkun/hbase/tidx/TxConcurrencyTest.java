@@ -31,10 +31,10 @@ public class TxConcurrencyTest {
                         hTable.setAutoFlush(false);
                         Random r = new Random();
                         System.out.println("" + j + " - " + System.currentTimeMillis());
-                        for (int i = 0; i < 1000; i++) {
+                        for (int i = 0; i < 100; i++) {
                             long k = 100 + r.nextInt(4) + j;
 
-                            byte[] row = ("zzzzz" + r.nextInt(4)).getBytes();
+                            byte[] row = ("aaaaa" + r.nextInt(4)).getBytes();
                             System.out.println("" + j + " - " + Bytes.toString(row));
                             Put p = new Put(row);
                             p.add("0".getBytes(), "T".getBytes(), Bytes.toBytes(k));

@@ -1,6 +1,6 @@
 原理:
 基于phoenix的local二级索引开发,phoenix的二级索引管理方式不变,
-而是采用regionobserver的方式,在对数据表进行索引字段put 或 row/索引所在的family/索引qualifier维护delete操作时,
+而是采用regionobserver的方式,在对数据表进行索引字段put 或 对row/索引所在的family/索引qualifier进行delete操作时,
 更新local二级索引表.
 
 支持客户端采用hbase api对数据表进行批量put/delete操作,
