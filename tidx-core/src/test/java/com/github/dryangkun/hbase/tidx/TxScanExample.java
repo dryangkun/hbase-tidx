@@ -7,7 +7,7 @@ import org.apache.hadoop.hbase.util.Bytes;
 
 import java.util.List;
 
-public class TxScanTest {
+public class TxScanExample {
 
     public static void main(String[] args) throws Exception {
         final Configuration conf = new Configuration();

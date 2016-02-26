@@ -82,6 +82,11 @@ public class TxUtils {
         return TableName.valueOf(MetaDataUtil.getLocalIndexPhysicalName(dataTableName));
     }
 
+    public static TableName getIndexTableName(String dataTableName) {
+        byte[] bytes = TableName.valueOf(dataTableName).getName();
+        return TableName.valueOf(MetaDataUtil.getLocalIndexPhysicalName(bytes));
+    }
+
     public static boolean equalCell(Cell cell, byte[] family, byte[] qualifier) {
         return Bytes.equals(cell.getFamilyArray(), cell.getFamilyOffset(), cell.getFamilyLength(),
                 family, 0, family.length) &&

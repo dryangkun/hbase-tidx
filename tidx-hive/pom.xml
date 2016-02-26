@@ -11,6 +11,14 @@
   </parent>
 
   <artifactId>hbase-tidx-hive</artifactId>
+  <version>${parent.version}-hive0.13.1</version>
 
-
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.hive</groupId>
+      <artifactId>hive-exec</artifactId>
+      <version>${hive.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
 </project>
