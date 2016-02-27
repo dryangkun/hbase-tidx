@@ -555,9 +555,11 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         ExprNodeGenericFuncDesc residualPredicate =
                 (ExprNodeGenericFuncDesc) analyzer.analyzePredicate(predicate, conditions);
 
-        jobConf.set("__abc__", "111");
         for (List<IndexSearchCondition> searchConditions :
                 HiveHBaseInputFormatUtil.decompose(conditions).values()) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("decomposePredicate: searchConditions -> " + searchConditions);
+            }
             int scSize = searchConditions.size();
             if (scSize < 1 || scSize > 2) {
                 // Either there was nothing which could be pushed down (size = 0),

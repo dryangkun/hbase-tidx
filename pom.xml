@@ -17,6 +17,9 @@
   <properties>
     <phoenix.version>4.4.0-HBase-1.1</phoenix.version>
     <hive.version>1.2.1</hive.version>
+    <main.basedir>${project.basedir}</main.basedir>
+    <java.version>1.7</java.version>
+    <java.encoding>UTF-8</java.encoding>
   </properties>
 
   <dependencies>
@@ -26,6 +29,21 @@
       <version>${phoenix.version}</version>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.3</version>
+        <configuration>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
+          <encoding>${java.encoding}</encoding>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 
   <profiles>
     <profile>

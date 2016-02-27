@@ -138,7 +138,7 @@ public class HBaseSerDe extends AbstractSerDe {
     public static int getTxTimeColumnIndex(ColumnMappings columnMappings, JobConf jobConf) throws SerDeException {
         String timeColumn = jobConf.get(TX_HIVE_TIME_COL);
         if (TxUtils.isEmpty(timeColumn)) {
-            //todo log warn
+            LOG.warn(TX_HIVE_TIME_COL + " is empty in job conf");
             return -1;
         }
 

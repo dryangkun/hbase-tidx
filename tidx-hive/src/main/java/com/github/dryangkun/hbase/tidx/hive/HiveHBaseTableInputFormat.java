@@ -95,6 +95,7 @@ public class HiveHBaseTableInputFormat extends TableInputFormatBase
 
         final org.apache.hadoop.mapreduce.RecordReader<ImmutableBytesWritable, Result> recordReader;
         if (jobConf.getBoolean(HBaseSerDe.TX_HIVE_INDEX_SCAN, false)) {
+            LOG.info("getRecordReader: TxHiveIndexScan -> " + tableSplit);
             recordReader = TxHiveTableInputFormatUtil.createRecordReader(tableSplit, tac, jobConf);
         } else {
             setHTable(HiveHBaseInputFormatUtil.getTable(jobConf));
@@ -467,6 +468,7 @@ public class HiveHBaseTableInputFormat extends TableInputFormatBase
                 for (int i = 0; i < splits.size(); i++) {
                     results[i] = new HBaseSplit((TableSplit) splits.get(i), tablePaths[0]);
                 }
+                LOG.info("getSplits: TxHiveIndexScan");
                 jobConf.setBoolean(HBaseSerDe.TX_HIVE_INDEX_SCAN, true);
                 return results;
             }

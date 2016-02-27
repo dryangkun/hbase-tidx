@@ -51,7 +51,7 @@ public class TxHiveTableInputFormatUtil {
         try {
             timeColIndex = HBaseSerDe.getTxTimeColumnIndex(columnMappings, jobConf);
         } catch (SerDeException e) {
-            //todo log warn
+            LOG.warn("get time column index fail", e);
         }
 
         if (timeColIndex != -1) {
@@ -59,7 +59,7 @@ public class TxHiveTableInputFormatUtil {
             appendIndexPredicateAnalyzer(analyzer, timeColMapping.columnName);
             return timeColMapping;
         } else {
-            //todo log warn
+            LOG.warn("no time column");
             return null;
         }
     }
@@ -182,12 +182,12 @@ public class TxHiveTableInputFormatUtil {
 
         long[] times = parseTimeConditions(timeConditions);
         if (times[0] == TxConstants.INFINITY_TIME && times[1] == TxConstants.INFINITY_TIME) {
-            //todo log warn
+            LOG.warn("getSplits: StartTime and EndTime both infinity");
             return null;
         }
         int phoenixIndexId = jobConf.getInt(HBaseSerDe.TX_HIVE_PHOENIX_INDEX_ID, -1);
         if (phoenixIndexId == -1) {
-            //todo log warn
+            LOG.warn("getSplits: " + HBaseSerDe.TX_HIVE_PHOENIX_INDEX_ID + " not exists in job conf");
             return null;
         }
         boolean timeCheck = jobConf.getBoolean(HBaseSerDe.TX_HIVE_TIME_CHECK, false);
@@ -202,6 +202,9 @@ public class TxHiveTableInputFormatUtil {
 
         Get dataGet = createDataGet(jobConf, columnMappings, tsConditions);
         dataGet.setCacheBlocks(scanCacheBlocks);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("getSplits: data get -> " + dataGet);
+        }
 
         TxScanBuilder scanBuilder = new TxScanBuilder();
         scanBuilder.setPhoenixIndexId(phoenixIndexId)
@@ -225,6 +228,9 @@ public class TxHiveTableInputFormatUtil {
             for (int i = 0; i < keys.getFirst().length; i++) {
                 Scan scan = scans.get(i);
                 scan.setCacheBlocks(scanCacheBlocks);
+                if (LOG.isDebugEnabled()) {
+                    LOG.debug("getSplits: scan -> " + i + " -> " + scan);
+                }
 
                 HRegionLocation hregionLocation =
                         regionLocator.getRegionLocation(keys.getFirst()[i], false);
