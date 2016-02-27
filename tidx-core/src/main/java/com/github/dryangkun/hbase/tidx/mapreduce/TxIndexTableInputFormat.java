@@ -12,7 +12,7 @@ import org.apache.hadoop.hbase.mapreduce.MultiTableInputFormatBase;
 
 import java.util.List;
 
-public class TxTableInputFormat extends MultiTableInputFormatBase implements Configurable {
+public class TxIndexTableInputFormat extends MultiTableInputFormatBase implements Configurable {
 
     private Configuration conf = null;
 

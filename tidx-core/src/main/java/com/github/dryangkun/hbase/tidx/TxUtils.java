@@ -42,30 +42,30 @@ public class TxUtils {
         return convertBytesToGet(bytes);
     }
 
-    public static String[] parseTimeColumn(Configuration conf, Log logger) throws IOException {
-        String timeColumn = conf.get(TxConstants.OB_ARG_TIME_COLUMN);
-        logger.debug("data observer argument " + TxConstants.OB_ARG_TIME_COLUMN +
+    public static byte[][] parseTimeColumn(Configuration conf, Log logger) throws IOException {
+        String timeColumn = conf.get(TxConstants.OBSERVER_TIME_COL);
+        logger.debug("data observer argument " + TxConstants.OBSERVER_TIME_COL +
                 " = " + timeColumn);
-        if (TxUtils.isEmpty(timeColumn)) {
+        if (isEmpty(timeColumn)) {
             throw new IOException("data observer argument " +
-                    TxConstants.OB_ARG_TIME_COLUMN + " missed");
+                    TxConstants.OBSERVER_TIME_COL + " missed");
         }
 
         String[] items = timeColumn.split(":", 2);
         if (items.length != 2) {
-            throw new IOException(TxConstants.OB_ARG_TIME_COLUMN + "=" +
+            throw new IOException(TxConstants.OBSERVER_TIME_COL + "=" +
                     timeColumn + " invalid(family:qualifier)");
         }
-        return items;
+        return new byte[][] { Bytes.toBytes(items[0]), Bytes.toBytes(items[1]) };
     }
 
     public static short parsePhoenixIndexId(Configuration conf, Log logger) throws IOException {
-        String indexIdStr = conf.get(TxConstants.OB_ARG_PHOENIX_INDEX_ID);
-        logger.debug("data observer argument " + TxConstants.OB_ARG_PHOENIX_INDEX_ID +
+        String indexIdStr = conf.get(TxConstants.OBSERVER_PHOENIX_INDEX_ID);
+        logger.debug("data observer argument " + TxConstants.OBSERVER_PHOENIX_INDEX_ID +
                 " = " + indexIdStr);
-        if (TxUtils.isEmpty(indexIdStr)) {
+        if (isEmpty(indexIdStr)) {
             throw new IOException("data observer argument " +
-                    TxConstants.OB_ARG_PHOENIX_INDEX_ID + " missed");
+                    TxConstants.OBSERVER_PHOENIX_INDEX_ID + " missed");
         }
 
         short indexId;
@@ -73,7 +73,7 @@ public class TxUtils {
             indexId = Short.parseShort(indexIdStr);
         } catch (NumberFormatException ex) {
             throw new IOException("data observer argument " +
-                    TxConstants.OB_ARG_PHOENIX_INDEX_ID + " is invalid", ex);
+                    TxConstants.OBSERVER_PHOENIX_INDEX_ID + " is invalid", ex);
         }
         return indexId;
     }

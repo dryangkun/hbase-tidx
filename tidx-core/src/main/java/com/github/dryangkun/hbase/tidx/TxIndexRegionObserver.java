@@ -23,9 +23,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class TxRegionObserver extends BaseRegionObserver {
+public class TxIndexRegionObserver extends BaseRegionObserver {
 
-    private static final Log LOG = LogFactory.getLog(TxRegionObserver.class);
+    private static final Log LOG = LogFactory.getLog(TxIndexRegionObserver.class);
 
     private static class Context {
         HRegion dRegion;
@@ -45,15 +45,15 @@ public class TxRegionObserver extends BaseRegionObserver {
     public void start(CoprocessorEnvironment e) throws IOException {
         Configuration conf = e.getConfiguration();
 
-        String[] items = TxUtils.parseTimeColumn(conf, LOG);
-        timeFamily = items[0].getBytes();
-        timeQualifier = items[1].getBytes();
+        byte[][] items = TxUtils.parseTimeColumn(conf, LOG);
+        timeFamily = items[0];
+        timeQualifier = items[1];
 
         phoenixIndexId = TxUtils.parsePhoenixIndexId(conf, LOG);
     }
 
     protected boolean isRegionObserverFor(Scan scan) {
-        return scan.getAttribute(TxConstants.IOB_CONF_ISCAN) != null;
+        return scan.getAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES) != null;
     }
 
     @Override
@@ -69,14 +69,14 @@ public class TxRegionObserver extends BaseRegionObserver {
             return s;
         }
 
-        byte[] bytes = scan.getAttribute(TxConstants.IOB_CONF_ISCAN_DATA_GET);
+        byte[] bytes = scan.getAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES_DATA_GET);
         context.dGet = bytes != null ? TxUtils.convertBytesToGet(bytes) : null;
         if (context.dGet == null) {
-            LOG.warn(TxConstants.IOB_CONF_ISCAN_DATA_GET + " is null in scan attribute");
+            LOG.warn(TxConstants.INDEX_SCAN_ATTRIBUTES_DATA_GET + " is null in scan attribute");
             return s;
         }
 
-        context.timeCheck = scan.getAttribute(TxConstants.IOB_CONF_ISCAN_TIME_CHECK) != null;
+        context.timeCheck = scan.getAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES_TIME_CHECK) != null;
         context.timeFamily = timeFamily;
         context.timeQualifier = timeQualifier;
 

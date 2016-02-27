@@ -37,7 +37,7 @@ public class TxJobExample {
 
         Job job = Job.getInstance(conf, "tx-job-example");
 
-        job.setInputFormatClass(TxTableInputFormat.class);
+        job.setInputFormatClass(TxIndexTableInputFormat.class);
         job.setOutputFormatClass(NullOutputFormat.class);
         job.setMapOutputKeyClass(NullWritable.class);
         job.setMapOutputValueClass(NullWritable.class);

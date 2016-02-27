@@ -4,15 +4,15 @@ import org.apache.hadoop.hbase.client.Get;
 
 public class TxConstants {
 
-    public static final String OB_ARG_TIME_COLUMN = "tx.time.column";
-    public static final String OB_ARG_PHOENIX_INDEX_ID = "tx.phoenix.index.id";
+    public static final String OBSERVER_TIME_COL = "tx.time.col";
+    public static final String OBSERVER_PHOENIX_INDEX_ID = "tx.phoenix.index.id";
 
     public static final byte[] PHOENIX_INDEX_FAMILY = "0".getBytes();
     public static final byte[] PHOENIX_INDEX_QUALIFIER = "_0".getBytes();
 
-    public static final String IOB_CONF_ISCAN = "tx.iscan";
-    public static final String IOB_CONF_ISCAN_DATA_GET = "tx.iscan.dget";
-    public static final String IOB_CONF_ISCAN_TIME_CHECK = "tx.iscan.tcheck";
+    public static final String INDEX_SCAN_ATTRIBUTES = "tx.iscan";
+    public static final String INDEX_SCAN_ATTRIBUTES_DATA_GET = "tx.iscan.dget";
+    public static final String INDEX_SCAN_ATTRIBUTES_TIME_CHECK = "tx.iscan.tcheck";
 
     public static final byte[] VIRTUAL_INDEX_TIME_FAMILY = "0".getBytes();
     public static final byte[] VIRTUAL_INDEX_TIME_QUALIFIER = "^T".getBytes();

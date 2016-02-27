@@ -60,9 +60,9 @@ public class TxDataRegionObserver extends BaseRegionObserver {
     public void start(CoprocessorEnvironment e) throws IOException {
         Configuration conf = e.getConfiguration();
 
-        String[] items = TxUtils.parseTimeColumn(conf, LOG);
-        timeFamily = items[0].getBytes();
-        timeQualifier = items[1].getBytes();
+        byte[][] items = TxUtils.parseTimeColumn(conf, LOG);
+        timeFamily = items[0];
+        timeQualifier = items[1];
 
         phoenixIndexId = TxUtils.parsePhoenixIndexId(conf, LOG);
     }

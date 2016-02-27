@@ -90,17 +90,21 @@ public class TxScanBuilder {
         scan.setCaching(caching);
         scan.setFilter(new FirstKeyOnlyFilter());
         scan.addColumn(TxConstants.PHOENIX_INDEX_FAMILY, TxConstants.PHOENIX_INDEX_QUALIFIER);
-        scan.setAttribute(TxConstants.IOB_CONF_ISCAN, TxConstants.TRUE_BYTES);
-        scan.setAttribute(TxConstants.IOB_CONF_ISCAN_DATA_GET, TxUtils.convertGetToBytes(dataGet));
+        scan.setAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES, TxConstants.TRUE_BYTES);
+        scan.setAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES_DATA_GET, TxUtils.convertGetToBytes(dataGet));
         if (timeCheck) {
-            scan.setAttribute(TxConstants.IOB_CONF_ISCAN_TIME_CHECK, TxConstants.TRUE_BYTES);
+            scan.setAttribute(TxConstants.INDEX_SCAN_ATTRIBUTES_TIME_CHECK, TxConstants.TRUE_BYTES);
         }
 
         return scan;
     }
 
     public List<Scan> build(HBaseAdmin admin, byte[] indexTableName) throws IOException {
-        List<HRegionInfo> ris = admin.getTableRegions(TableName.valueOf(indexTableName));
+        TableName tableName = TableName.valueOf(indexTableName);
+        List<HRegionInfo> ris = admin.getTableRegions(tableName);
+        if (ris == null || ris.isEmpty()) {
+            throw new IOException("no region in table - " + tableName.getNameAsString());
+        }
         List<Scan> scans = new ArrayList<Scan>(ris.size());
 
         for (HRegionInfo ri : ris) {
@@ -112,7 +116,11 @@ public class TxScanBuilder {
     public List<Scan> build(Connection conn, byte[] indexTableName) throws IOException {
         Admin admin = conn.getAdmin();
         try {
-            List<HRegionInfo> ris = admin.getTableRegions(TableName.valueOf(indexTableName));
+            TableName tableName = TableName.valueOf(indexTableName);
+            List<HRegionInfo> ris = admin.getTableRegions(tableName);
+            if (ris == null || ris.isEmpty()) {
+                throw new IOException("no region in table - " + tableName.getNameAsString());
+            }
             List<Scan> scans = new ArrayList<Scan>(ris.size());
 
             for (HRegionInfo ri : ris) {
