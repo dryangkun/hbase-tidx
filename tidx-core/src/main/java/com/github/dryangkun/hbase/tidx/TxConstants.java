@@ -5,7 +5,7 @@ import org.apache.hadoop.hbase.client.Get;
 public class TxConstants {
 
     public static final String OBSERVER_TIME_COL = "tx.time.col";
-    public static final String OBSERVER_PHOENIX_INDEX_ID = "tx.phoenix.index.id";
+    public static final String OBSERVER_PHOENIX_INDEX_ID = "tx.pidx.id";
 
     public static final byte[] PHOENIX_INDEX_FAMILY = "0".getBytes();
     public static final byte[] PHOENIX_INDEX_QUALIFIER = "_0".getBytes();

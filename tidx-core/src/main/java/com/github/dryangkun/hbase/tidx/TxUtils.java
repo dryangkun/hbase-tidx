@@ -3,15 +3,20 @@ package com.github.dryangkun.hbase.tidx;
 import com.sun.org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.phoenix.jdbc.PhoenixEmbeddedDriver;
 import org.apache.phoenix.util.MetaDataUtil;
+import org.apache.phoenix.util.PhoenixRuntime;
 
 import java.io.IOException;
+import java.sql.SQLException;
 
 public class TxUtils {
 
@@ -96,5 +101,35 @@ public class TxUtils {
 
     public static Get createDataGet() {
         return new Get(TxConstants.TRUE_BYTES);
+    }
+
+    public static String createPhoenixJdbcUrl(String zkQuorum, int zkClientPort, String znodeParent) {
+        return PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR +
+                zkQuorum + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR +
+                zkClientPort + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR +
+                znodeParent;
+    }
+
+    public static String createPhoenixJdbcUrl(Configuration conf) throws IOException {
+        String zkQuorum = conf.get(HConstants.ZOOKEEPER_QUORUM);
+        if (isEmpty(zkQuorum)) {
+            throw new IOException(HConstants.ZOOKEEPER_QUORUM + " is empty in conf");
+        }
+        int zkClientPort = conf.getInt(HConstants.ZOOKEEPER_CLIENT_PORT, HConstants.DEFAULT_ZOOKEPER_CLIENT_PORT);
+        String znodeParent = conf.get(HConstants.ZOOKEEPER_ZNODE_PARENT, HConstants.DEFAULT_ZOOKEEPER_ZNODE_PARENT);
+        return createPhoenixJdbcUrl(zkQuorum, zkClientPort, znodeParent);
+    }
+
+    public static Configuration createConfiguration(String phoenixJdbcUrl) throws SQLException {
+        PhoenixEmbeddedDriver.ConnectionInfo connectionInfo = PhoenixEmbeddedDriver.ConnectionInfo.create(phoenixJdbcUrl);
+        Configuration conf = HBaseConfiguration.create();
+        conf.set(HConstants.ZOOKEEPER_QUORUM, connectionInfo.getZookeeperQuorum());
+        if (connectionInfo.getPort() != null) {
+            conf.set(HConstants.ZOOKEEPER_CLIENT_PORT, "" + connectionInfo.getPort());
+        }
+        if (connectionInfo.getRootNode() != null) {
+            conf.set(HConstants.ZOOKEEPER_ZNODE_PARENT, connectionInfo.getRootNode());
+        }
+        return conf;
     }
 }
