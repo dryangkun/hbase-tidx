@@ -94,10 +94,11 @@ public class HiveHBaseTableInputFormat extends TableInputFormatBase
                 .newTaskAttemptContext(job.getConfiguration(), reporter);
 
         final org.apache.hadoop.mapreduce.RecordReader<ImmutableBytesWritable, Result> recordReader;
-        if (jobConf.getBoolean(HBaseSerDe.TX_HIVE_INDEX_SCAN, false)) {
+        if (hbaseSplit.isTxIndexScan()) {
             LOG.info("getRecordReader: TxHiveIndexScan -> " + tableSplit);
             recordReader = TxHiveTableInputFormatUtil.createRecordReader(tableSplit, tac, jobConf);
         } else {
+            LOG.info("getRecordReader: no TxHiveIndexScan -> " + tableSplit);
             setHTable(HiveHBaseInputFormatUtil.getTable(jobConf));
             setScan(HiveHBaseInputFormatUtil.getScan(jobConf));
             recordReader = createRecordReader(tableSplit, tac);
@@ -466,13 +467,13 @@ public class HiveHBaseTableInputFormat extends TableInputFormatBase
 
                 InputSplit[] results = new InputSplit[splits.size()];
                 for (int i = 0; i < splits.size(); i++) {
-                    results[i] = new HBaseSplit((TableSplit) splits.get(i), tablePaths[0]);
+                    results[i] = new HBaseSplit((TableSplit) splits.get(i), tablePaths[0], true);
                 }
                 LOG.info("getSplits: TxHiveIndexScan");
-                jobConf.setBoolean(HBaseSerDe.TX_HIVE_INDEX_SCAN, true);
                 return results;
             }
         }
+        LOG.info("getSplits: no TxHiveIndexScan");
 
         setHTable(new HTable(HBaseConfiguration.create(jobConf), Bytes.toBytes(hbaseTableName)));
         // Take filter pushdown into account while calculating splits; this

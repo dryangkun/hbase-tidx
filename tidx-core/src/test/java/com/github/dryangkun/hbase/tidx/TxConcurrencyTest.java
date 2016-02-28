@@ -34,10 +34,11 @@ public class TxConcurrencyTest {
                         for (int i = 0; i < 100; i++) {
                             long k = 100 + r.nextInt(4) + j;
 
-                            byte[] row = ("aaaaa" + r.nextInt(4)).getBytes();
+                            byte[] row = ("zzzzz" + r.nextInt(4)).getBytes();
                             System.out.println("" + j + " - " + Bytes.toString(row));
                             Put p = new Put(row);
                             p.add("0".getBytes(), "T".getBytes(), Bytes.toBytes(k));
+                            p.add("0".getBytes(), "A".getBytes(), Bytes.toBytes("www" + i));
                             hTable.put(p);
                             if (i % 20 == 19) {
                                 hTable.flushCommits();

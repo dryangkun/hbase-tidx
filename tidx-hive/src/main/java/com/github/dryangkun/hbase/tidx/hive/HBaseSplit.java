@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p/>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p/>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,99 +18,112 @@
 
 package com.github.dryangkun.hbase.tidx.hive;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.mapreduce.TableSplit;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.InputSplit;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 /**
  * HBaseSplit augments FileSplit with HBase column mapping.
  */
 public class HBaseSplit extends FileSplit implements InputSplit {
 
-  private final TableSplit tableSplit;
-  private final InputSplit snapshotSplit;
-  private boolean isTableSplit; // should be final but Writable
+    private final TableSplit tableSplit;
+    private final InputSplit snapshotSplit;
+    private boolean isTableSplit; // should be final but Writable
+    private boolean isTxIndexScan;
 
-  /**
-   * For Writable
-   */
-  public HBaseSplit() {
-    super((Path) null, 0, 0, (String[]) null);
-    tableSplit = new TableSplit();
-    snapshotSplit = HBaseTableSnapshotInputFormatUtil.createTableSnapshotRegionSplit();
-  }
-
-  public HBaseSplit(TableSplit tableSplit, Path dummyPath) {
-    super(dummyPath, 0, 0, (String[]) null);
-    this.tableSplit = tableSplit;
-    this.snapshotSplit = HBaseTableSnapshotInputFormatUtil.createTableSnapshotRegionSplit();
-    this.isTableSplit = true;
-  }
-
-  /**
-   * TODO: use TableSnapshotRegionSplit HBASE-11555 is fixed.
-   */
-  public HBaseSplit(InputSplit snapshotSplit, Path dummyPath) {
-    super(dummyPath, 0, 0, (String[]) null);
-    this.tableSplit = new TableSplit();
-    this.snapshotSplit = snapshotSplit;
-    this.isTableSplit = false;
-  }
-
-  public TableSplit getTableSplit() {
-    assert isTableSplit;
-    return this.tableSplit;
-  }
-
-  public InputSplit getSnapshotSplit() {
-    assert !isTableSplit;
-    return this.snapshotSplit;
-  }
-
-  @Override
-  public String toString() {
-    return "" + (isTableSplit ? tableSplit : snapshotSplit);
-  }
-
-  @Override
-  public void readFields(DataInput in) throws IOException {
-    super.readFields(in);
-    this.isTableSplit = in.readBoolean();
-    if (this.isTableSplit) {
-      tableSplit.readFields(in);
-    } else {
-      snapshotSplit.readFields(in);
+    /**
+     * For Writable
+     */
+    public HBaseSplit() {
+        super((Path) null, 0, 0, (String[]) null);
+        tableSplit = new TableSplit();
+        snapshotSplit = HBaseTableSnapshotInputFormatUtil.createTableSnapshotRegionSplit();
     }
-  }
 
-  @Override
-  public void write(DataOutput out) throws IOException {
-    super.write(out);
-    out.writeBoolean(isTableSplit);
-    if (isTableSplit) {
-      tableSplit.write(out);
-    } else {
-      snapshotSplit.write(out);
+    public HBaseSplit(TableSplit tableSplit, Path dummyPath) {
+        this(tableSplit, dummyPath, false);
     }
-  }
 
-  @Override
-  public long getLength() {
-    long val = 0;
-    try {
-      val = isTableSplit ? tableSplit.getLength() : snapshotSplit.getLength();
-    } finally {
-      return val;
+    public HBaseSplit(TableSplit tableSplit, Path dummyPath, boolean isTxIndexScan) {
+        super(dummyPath, 0, 0, (String[]) null);
+        this.tableSplit = tableSplit;
+        this.snapshotSplit = HBaseTableSnapshotInputFormatUtil.createTableSnapshotRegionSplit();
+        this.isTableSplit = true;
+        this.isTxIndexScan = isTxIndexScan;
     }
-  }
 
-  @Override
-  public String[] getLocations() throws IOException {
-    return isTableSplit ? tableSplit.getLocations() : snapshotSplit.getLocations();
-  }
+    /**
+     * TODO: use TableSnapshotRegionSplit HBASE-11555 is fixed.
+     */
+    public HBaseSplit(InputSplit snapshotSplit, Path dummyPath) {
+        super(dummyPath, 0, 0, (String[]) null);
+        this.tableSplit = new TableSplit();
+        this.snapshotSplit = snapshotSplit;
+        this.isTableSplit = false;
+        this.isTxIndexScan = false;
+    }
+
+    public TableSplit getTableSplit() {
+        assert isTableSplit;
+        return this.tableSplit;
+    }
+
+    public boolean isTxIndexScan() {
+        return isTxIndexScan;
+    }
+
+    public InputSplit getSnapshotSplit() {
+        assert !isTableSplit;
+        return this.snapshotSplit;
+    }
+
+    @Override
+    public String toString() {
+        return "" + (isTableSplit ? tableSplit : snapshotSplit);
+    }
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        super.readFields(in);
+        this.isTableSplit = in.readBoolean();
+        this.isTxIndexScan = in.readBoolean();
+        if (this.isTableSplit) {
+            tableSplit.readFields(in);
+        } else {
+            snapshotSplit.readFields(in);
+        }
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+        super.write(out);
+        out.writeBoolean(isTableSplit);
+        out.writeBoolean(isTxIndexScan);
+        if (isTableSplit) {
+            tableSplit.write(out);
+        } else {
+            snapshotSplit.write(out);
+        }
+    }
+
+    @Override
+    public long getLength() {
+        long val = 0;
+        try {
+            val = isTableSplit ? tableSplit.getLength() : snapshotSplit.getLength();
+        } finally {
+            return val;
+        }
+    }
+
+    @Override
+    public String[] getLocations() throws IOException {
+        return isTableSplit ? tableSplit.getLocations() : snapshotSplit.getLocations();
+    }
 }
