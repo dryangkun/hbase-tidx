@@ -150,24 +150,32 @@ public class TxHiveTableInputFormatUtil {
     }
 
     private static Map<String, List<IndexSearchCondition>> decomposeSearchConditions(List<IndexSearchCondition> searchConditions) {
-        return null;
+        Map<String, List<IndexSearchCondition>> result = new HashMap<>();
+        for (IndexSearchCondition condition : searchConditions) {
+            List<IndexSearchCondition> conditions = result.get(condition.getColumnDesc().getColumn());
+            if (conditions == null) {
+                conditions = new ArrayList<>();
+                result.put(condition.getColumnDesc().getColumn(), conditions);
+            }
+            conditions.add(condition);
+        }
+        return result;
     }
 
     public static List<InputSplit> getSplits(JobConf jobConf, int numSplits,
                                          ColumnMappings columnMappings, int iTimeColumn,
                                          String hbaseTableName) throws IOException {
         String[] columnNames = jobConf.get(serdeConstants.LIST_COLUMNS).split(",");
-
-        Map<String, List<IndexSearchCondition>> predicateConditions =
+        Map<String, List<IndexSearchCondition>> searchConditions =
                 createSearchConditions(jobConf, columnMappings, iTimeColumn, columnNames);
-        if (predicateConditions == null) {
+        if (searchConditions == null) {
             return null;
         }
 
         String keyColName = columnNames[columnMappings.getKeyIndex()];
         String timeColName = columnNames[iTimeColumn];
-        List<IndexSearchCondition> keyConditions = predicateConditions.get(keyColName);
-        List<IndexSearchCondition> timeConditions = predicateConditions.get(timeColName);
+        List<IndexSearchCondition> keyConditions = searchConditions.get(keyColName);
+        List<IndexSearchCondition> timeConditions = searchConditions.get(timeColName);
 
         if ((keyConditions != null && !keyConditions.isEmpty()) ||
             (timeConditions == null || timeConditions.isEmpty())) {
