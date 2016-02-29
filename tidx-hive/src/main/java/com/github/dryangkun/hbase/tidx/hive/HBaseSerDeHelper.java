@@ -36,16 +36,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.common.JavaUtils;
 import com.github.dryangkun.hbase.tidx.hive.ColumnMappings.ColumnMapping;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.avro.AvroObjectInspectorGenerator;
 import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
-import org.apache.hadoop.hive.serde2.lazy.LazyFactory;
-import org.apache.hadoop.hive.serde2.lazy.LazyObjectBase;
-import org.apache.hadoop.hive.serde2.lazy.objectinspector.LazyMapObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.util.StringUtils;
 
@@ -376,19 +371,6 @@ public class HBaseSerDeHelper {
   }
 
   /**
-   * Create the {@link LazyObjectBase lazy field}
-   * */
-  public static LazyObjectBase createLazyField(ColumnMapping[] columnMappings, int fieldID,
-      ObjectInspector inspector) {
-    ColumnMapping colMap = columnMappings[fieldID];
-    if (colMap.getQualifierName() == null && !colMap.isHbaseRowKey()) {
-      // a column family
-      return new LazyHBaseCellMap((LazyMapObjectInspector) inspector);
-    }
-    return LazyFactory.createLazyObject(inspector, colMap.getBinaryStorage().get(0));
-  }
-
-  /**
    * Auto-generates the key struct for composite keys
    * 
    * @param compositeKeyParts map of composite key part name to its type. Usually this would be
@@ -467,7 +449,7 @@ public class HBaseSerDeHelper {
       throws SerDeException {
     Class<?> serClass;
     try {
-      serClass = JavaUtils.loadClass(serClassName);
+      serClass = Class.forName(serClassName);
     } catch (ClassNotFoundException e) {
       throw new SerDeException("Error obtaining descriptor for " + serClassName, e);
     }
@@ -563,7 +545,7 @@ public class HBaseSerDeHelper {
 
     Class<?> keyClass;
     try {
-      keyClass = JavaUtils.loadClass(compKeyClassName);
+      keyClass = Class.forName(compKeyClassName);
       keyFactory = new CompositeHBaseKeyFactory(keyClass);
     } catch (Exception e) {
       throw new SerDeException(e);

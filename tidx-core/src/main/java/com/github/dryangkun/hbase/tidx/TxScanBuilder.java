@@ -4,7 +4,9 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.client.*;
+import org.apache.hadoop.hbase.client.Get;
+import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.filter.FirstKeyOnlyFilter;
 
 import java.io.IOException;
@@ -113,34 +115,14 @@ public class TxScanBuilder {
         return scans;
     }
 
-    public List<Scan> build(Connection conn, byte[] indexTableName) throws IOException {
-        Admin admin = conn.getAdmin();
+    public List<Scan> build(Configuration conf, byte[] indexTableName) throws IOException {
+        HBaseAdmin admin = new HBaseAdmin(conf);
         try {
-            TableName tableName = TableName.valueOf(indexTableName);
-            List<HRegionInfo> ris = admin.getTableRegions(tableName);
-            if (ris == null || ris.isEmpty()) {
-                throw new IOException("no region in table - " + tableName.getNameAsString());
-            }
-            List<Scan> scans = new ArrayList<Scan>(ris.size());
-
-            for (HRegionInfo ri : ris) {
-                scans.add(build(ri.getStartKey(), ri.getEndKey()));
-            }
-            return scans;
+            return build(admin, indexTableName);
         } finally {
             if (admin != null) {
                 try { admin.close(); } catch(IOException e) {}
             }
-        }
-    }
-
-    public List<Scan> build(Configuration conf, byte[] indexTableName) throws IOException {
-        Connection conn = null;
-        try {
-            conn = ConnectionFactory.createConnection(conf);
-            return build(conn, indexTableName);
-        } finally {
-            try { conn.close(); } catch(IOException e) {}
         }
     }
 }

@@ -5,6 +5,7 @@ import com.github.dryangkun.hbase.tidx.TxScanBuilder;
 import com.github.dryangkun.hbase.tidx.TxUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HRegionLocation;
@@ -65,17 +66,16 @@ public class TxHiveTableInputFormatUtil {
     }
 
     public static void appendIndexPredicateAnalyzer(IndexPredicateAnalyzer analyzer, String timeColName) {
-        analyzer.addComparisonOp(timeColName,
-                "org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual",
-                "org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan",
-                "org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan",
-                "org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan",
-                "org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan");
+        analyzer.addComparisonOp("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual");
+        analyzer.addComparisonOp("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrGreaterThan");
+        analyzer.addComparisonOp("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqualOrLessThan");
+        analyzer.addComparisonOp("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPLessThan");
+        analyzer.addComparisonOp("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPGreaterThan");
+        analyzer.allowColumnName(timeColName);
     }
 
     private static Get createDataGet(JobConf jobConf,
-                                     ColumnMappings columnMappings,
-                                     List<IndexSearchCondition> tsConditions) throws IOException {
+                                     ColumnMappings columnMappings) throws IOException {
         Get dataGet = TxUtils.createDataGet();
         dataGet.setMaxVersions(1);
 
@@ -86,7 +86,7 @@ public class TxHiveTableInputFormatUtil {
         ColumnMappings.ColumnMapping[] columnsMapping = columnMappings.getColumnsMapping();
         for (int i : readColIDs) {
             ColumnMappings.ColumnMapping colMap = columnsMapping[i];
-            if (colMap.hbaseRowKey || colMap.hbaseTimestamp) {
+            if (colMap.hbaseRowKey) {
                 continue;
             }
 
@@ -102,7 +102,7 @@ public class TxHiveTableInputFormatUtil {
         }
         if (empty) {
             for (ColumnMappings.ColumnMapping colMap : columnMappings) {
-                if (colMap.hbaseRowKey || colMap.hbaseTimestamp) {
+                if (colMap.hbaseRowKey) {
                     continue;
                 }
 
@@ -112,10 +112,6 @@ public class TxHiveTableInputFormatUtil {
                     dataGet.addColumn(colMap.familyNameBytes, colMap.qualifierNameBytes);
                 }
             }
-        }
-
-        if (tsConditions != null && !tsConditions.isEmpty()) {
-            setupTimeRange(dataGet, tsConditions);
         }
         return dataGet;
     }
@@ -139,15 +135,9 @@ public class TxHiveTableInputFormatUtil {
         String colType = jobConf.get(serdeConstants.LIST_COLUMN_TYPES).split(",")[iKey];
         boolean isKeyComparable = isKeyBinary || colType.equalsIgnoreCase("string");
 
-        int iTimestamp = columnMappings.getTimestampIndex();
-        String tsColName = null;
-        if (iTimestamp >= 0) {
-            tsColName = columnNames[iTimestamp];
-        }
-
         String timeColName = columnNames[iTimeColumn];
         IndexPredicateAnalyzer analyzer =
-                HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(keyColName, isKeyComparable, tsColName);
+                HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(keyColName, isKeyComparable);
         appendIndexPredicateAnalyzer(analyzer, timeColName);
 
         List<IndexSearchCondition> conditions = new ArrayList<>();
@@ -194,13 +184,7 @@ public class TxHiveTableInputFormatUtil {
         int scanCache = jobConf.getInt(HBaseSerDe.HBASE_SCAN_CACHE, -1);
         boolean scanCacheBlocks = jobConf.getBoolean(HBaseSerDe.HBASE_SCAN_CACHEBLOCKS, false);
 
-        List<IndexSearchCondition> tsConditions = null;
-        if (columnMappings.getTimestampIndex() != -1) {
-            String tsColName = columnNames[columnMappings.getTimestampIndex()];
-            tsConditions = predicateConditions.get(tsColName);
-        }
-
-        Get dataGet = createDataGet(jobConf, columnMappings, tsConditions);
+        Get dataGet = createDataGet(jobConf, columnMappings);
         dataGet.setCacheBlocks(scanCacheBlocks);
         if (LOG.isDebugEnabled()) {
             LOG.debug("getSplits: data get -> " + dataGet);
@@ -216,11 +200,11 @@ public class TxHiveTableInputFormatUtil {
 
         TableName indexTableName = TxUtils.getIndexTableName(Bytes.toBytes(hbaseTableName));
         List<InputSplit> splits = new ArrayList<>();
-        try (Connection conn = ConnectionFactory.createConnection(jobConf);
-             Table indexTable = conn.getTable(indexTableName);
-             RegionLocator regionLocator = conn.getRegionLocator(indexTableName)) {
 
-            List<Scan> scans = scanBuilder.build(conn, indexTableName.getName());
+        Configuration conf = HBaseConfiguration.create(jobConf);
+        try (HTable indexTable = new HTable(conf, indexTableName)) {
+
+            List<Scan> scans = scanBuilder.build(conf, indexTableName.getName());
             RegionSizeCalculator sizeCalculator =
                     new RegionSizeCalculator(regionLocator, conn.getAdmin());
             Pair<byte[][], byte[][]> keys = regionLocator.getStartEndKeys();
@@ -336,7 +320,7 @@ public class TxHiveTableInputFormatUtil {
         sc.setStopRow(tSplit.getEndRow());
 
         trr.setScan(sc);
-        trr.setTable(table);
+        trr.setHTable(table);
         return new RecordReader<ImmutableBytesWritable, Result>() {
 
             @Override

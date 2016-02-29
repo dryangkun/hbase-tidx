@@ -48,8 +48,7 @@ public class AvroHBaseValueFactory extends DefaultHBaseValueFactory {
    * 
    * @param schema the associated {@link Schema schema}
    * */
-  public AvroHBaseValueFactory(int fieldID, Schema schema) {
-    super(fieldID);
+  public AvroHBaseValueFactory(Schema schema) {
     this.schema = schema;
   }
 
@@ -74,7 +73,9 @@ public class AvroHBaseValueFactory extends DefaultHBaseValueFactory {
   @Override
   public ObjectInspector createValueObjectInspector(TypeInfo type) throws SerDeException {
     ObjectInspector oi =
-        LazyFactory.createLazyObjectInspector(type, 1, serdeParams, ObjectInspectorOptions.AVRO);
+        LazyFactory.createLazyObjectInspector(type, serdeParams.getSeparators(), 1,
+        serdeParams.getNullSequence(), serdeParams.isEscaped(), serdeParams.getEscapeChar(),
+        ObjectInspectorOptions.AVRO);
 
     // initialize the object inspectors
     initInternalObjectInspectors(oi);

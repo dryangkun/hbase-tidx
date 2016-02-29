@@ -25,20 +25,17 @@ import java.util.Properties;
 import org.apache.avro.Schema;
 import org.apache.avro.reflect.ReflectData;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.common.JavaUtils;
 import com.github.dryangkun.hbase.tidx.hive.ColumnMappings.ColumnMapping;
 import com.github.dryangkun.hbase.tidx.hive.struct.AvroHBaseValueFactory;
 import com.github.dryangkun.hbase.tidx.hive.struct.DefaultHBaseValueFactory;
 import com.github.dryangkun.hbase.tidx.hive.struct.HBaseValueFactory;
-import com.github.dryangkun.hbase.tidx.hive.struct.StructHBaseValueFactory;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.avro.AvroSerdeUtils;
-import org.apache.hadoop.hive.serde2.lazy.LazySerDeParameters;
+import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
+import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe.SerDeParameters;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.util.ReflectionUtils;
-
-import javax.annotation.Nullable;
 
 /**
  * HBaseSerDeParameters encapsulates SerDeParameters and additional configurations that are specific for
@@ -50,7 +47,7 @@ public class HBaseSerDeParameters {
   public static final String AVRO_SERIALIZATION_TYPE = "avro";
   public static final String STRUCT_SERIALIZATION_TYPE = "struct";
 
-  private final LazySerDeParameters serdeParams;
+  private final SerDeParameters serdeParams;
 
   private final Configuration job;
 
@@ -92,7 +89,7 @@ public class HBaseSerDeParameters {
           columnMappings.toTypesString(tbl, job, autogenerate));
     }
 
-    this.serdeParams = new LazySerDeParameters(job, tbl, serdeName);
+    this.serdeParams = LazySimpleSerDe.initSerdeParams(job, tbl, serdeName);
     this.putTimestamp = Long.valueOf(tbl.getProperty(HBaseSerDe.HBASE_PUT_TIMESTAMP, "-1"));
 
     columnMappings.setHiveColumnDescription(serdeName, serdeParams.getColumnNames(),
@@ -114,7 +111,7 @@ public class HBaseSerDeParameters {
     return serdeParams.getColumnTypes();
   }
 
-  public LazySerDeParameters getSerdeParams() {
+  public SerDeParameters getSerdeParams() {
     return serdeParams;
   }
 
@@ -128,14 +125,6 @@ public class HBaseSerDeParameters {
 
   public ColumnMapping getKeyColumnMapping() {
     return columnMappings.getKeyMapping();
-  }
-
-  public int getTimestampIndex() {
-    return columnMappings.getTimestampIndex();
-  }
-
-  public ColumnMapping getTimestampColumnMapping() {
-    return columnMappings.getTimestampMapping();
   }
 
   public ColumnMappings getColumnMappings() {
@@ -185,23 +174,15 @@ public class HBaseSerDeParameters {
       throws Exception {
     String factoryClassName = tbl.getProperty(HBaseSerDe.HBASE_COMPOSITE_KEY_FACTORY);
     if (factoryClassName != null) {
-      Class<?> factoryClazz = loadClass(factoryClassName, job);
+      Class<?> factoryClazz = Class.forName(factoryClassName);
       return (HBaseKeyFactory) ReflectionUtils.newInstance(factoryClazz, job);
     }
     String keyClassName = tbl.getProperty(HBaseSerDe.HBASE_COMPOSITE_KEY_CLASS);
     if (keyClassName != null) {
-      Class<?> keyClass = loadClass(keyClassName, job);
+      Class<?> keyClass = Class.forName(keyClassName);
       return new CompositeHBaseKeyFactory(keyClass);
     }
     return new DefaultHBaseKeyFactory();
-  }
-
-  private static Class<?> loadClass(String className, @Nullable Configuration configuration)
-      throws Exception {
-    if (configuration != null) {
-      return configuration.getClassByName(className);
-    }
-    return JavaUtils.loadClass(className);
   }
 
   private List<HBaseValueFactory> initValueFactories(Configuration conf, Properties tbl)
@@ -223,21 +204,11 @@ public class HBaseSerDeParameters {
       for (int i = 0; i < columnMappings.size(); i++) {
         String serType = getSerializationType(conf, tbl, columnMappings.getColumnsMapping()[i]);
 
-        if (AVRO_SERIALIZATION_TYPE.equals(serType)) {
+        if (serType != null && serType.equals(AVRO_SERIALIZATION_TYPE)) {
           Schema schema = getSchema(conf, tbl, columnMappings.getColumnsMapping()[i]);
-          valueFactories.add(new AvroHBaseValueFactory(i, schema));
-        } else if (STRUCT_SERIALIZATION_TYPE.equals(serType)) {
-          String structValueClassName = tbl.getProperty(HBaseSerDe.HBASE_STRUCT_SERIALIZER_CLASS);
-
-          if (structValueClassName == null) {
-            throw new IllegalArgumentException(HBaseSerDe.HBASE_STRUCT_SERIALIZER_CLASS
-                + " must be set for hbase columns of type [" + STRUCT_SERIALIZATION_TYPE + "]");
-          }
-
-          Class<?> structValueClass = loadClass(structValueClassName, job);
-          valueFactories.add(new StructHBaseValueFactory(i, structValueClass));
+          valueFactories.add(new AvroHBaseValueFactory(schema));
         } else {
-          valueFactories.add(new DefaultHBaseValueFactory(i));
+          valueFactories.add(new DefaultHBaseValueFactory());
         }
       }
     } catch (Exception e) {
@@ -339,10 +310,6 @@ public class HBaseSerDeParameters {
           tbl.getProperty(colMap.familyName + "." + qualifierName + "." + AvroSerdeUtils.SCHEMA_URL);
     }
 
-    if (serType == null) {
-      throw new IllegalArgumentException("serialization.type property is missing");
-    }
-
     String avroSchemaRetClass = tbl.getProperty(AvroSerdeUtils.SCHEMA_RETRIEVER);
 
     if (schemaLiteral == null && serClassName == null && schemaUrl == null
@@ -355,7 +322,7 @@ public class HBaseSerDeParameters {
     Class<?> deserializerClass = null;
 
     if (serClassName != null) {
-      deserializerClass = loadClass(serClassName, conf);
+      deserializerClass = conf.getClassByName(serClassName);
     }
 
     Schema schema = null;

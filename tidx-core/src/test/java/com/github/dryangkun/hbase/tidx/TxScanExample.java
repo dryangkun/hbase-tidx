@@ -15,8 +15,6 @@ public class TxScanExample {
         conf.set("hbase.zookeeper.property.clientPort", "2181");
         conf.set("zookeeper.znode.parent", "/hbase-unsecure");
 
-        Connection conn = ConnectionFactory.createConnection(conf);
-
         TxScanBuilder scanBuilder = new TxScanBuilder();
 
         Get dataGet = TxUtils.createDataGet();
@@ -29,8 +27,8 @@ public class TxScanExample {
                    .setDataGet(dataGet);
 
         TableName indexTableName = TxUtils.getIndexTableName("T1".getBytes());
-        List<Scan> scans = scanBuilder.build(conn, indexTableName.getName());
-        Table indexTable = conn.getTable(indexTableName);
+        List<Scan> scans = scanBuilder.build(conf, indexTableName.getName());
+        HTable indexTable = new HTable(conf, indexTableName);
 
         for (Scan scan : scans) {
             System.out.println("scan = " + scan);
@@ -51,6 +49,5 @@ public class TxScanExample {
         }
 
         indexTable.close();
-        conn.close();
     }
 }

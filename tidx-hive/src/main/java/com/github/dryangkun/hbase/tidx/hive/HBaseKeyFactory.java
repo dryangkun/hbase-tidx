@@ -59,7 +59,8 @@ public interface HBaseKeyFactory extends HiveStoragePredicateHandler {
    * serialize hive object in internal format of custom key
    *
    * @param object
-   * @param field
+   * @param inspector
+   * @param output
    *
    * @return true if it's not null
    * @throws java.io.IOException

@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-package com.github.dryangkun.hbase.tidx.hive;
-
 import com.github.dryangkun.hbase.tidx.hive.ColumnMappings.ColumnMapping;
+import com.yammer.metrics.core.MetricsRegistry;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -28,11 +27,14 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.HConnection;
+import org.apache.hadoop.hbase.client.HConnectionManager;
 import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.mapred.TableOutputFormat;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormatBase;
 import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
 import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.security.token.TokenUtil;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHook;
@@ -69,26 +71,22 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
     private static final Log LOG = LogFactory.getLog(HBaseStorageHandler.class);
 
-    /**
-     * HBase-internal config by which input format receives snapshot name.
-     */
+    /** HBase-internal config by which input format receives snapshot name. */
     private static final String HBASE_SNAPSHOT_NAME_KEY = "hbase.TableSnapshotInputFormat.snapshot.name";
-    /**
-     * HBase-internal config by which input format received restore dir before HBASE-11335.
-     */
+    /** HBase-internal config by which input format received restore dir before HBASE-11335. */
     private static final String HBASE_SNAPSHOT_TABLE_DIR_KEY = "hbase.TableSnapshotInputFormat.table.dir";
-    /**
-     * HBase-internal config by which input format received restore dir after HBASE-11335.
-     */
+    /** HBase-internal config by which input format received restore dir after HBASE-11335. */
     private static final String HBASE_SNAPSHOT_RESTORE_DIR_KEY = "hbase.TableSnapshotInputFormat.restore.dir";
-    /**
-     * HBase config by which a SlabCache is sized.
-     */
-    private static final String HBASE_OFFHEAP_PCT_KEY = "hbase.offheapcache.percentage";
-    /**
-     * HBase config by which a BucketCache is sized.
-     */
-    private static final String HBASE_BUCKETCACHE_SIZE_KEY = "hbase.bucketcache.size";
+    private static final String[] HBASE_CACHE_KEYS = new String[]{
+            /** HBase config by which a SlabCache is sized. From HBase [0.98.3, 1.0.0) */
+            "hbase.offheapcache.percentage",
+            /** HBase config by which a BucketCache is sized. */
+            "hbase.bucketcache.size",
+            /** HBase config by which the bucket cache implementation is chosen. From HBase 0.98.10+ */
+            "hbase.bucketcache.ioengine",
+            /** HBase config by which a BlockCache is sized. */
+            "hfile.block.cache.size"
+    };
 
     final static public String DEFAULT_PREFIX = "default.";
 
@@ -191,7 +189,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
                     Set<String> uniqueColumnFamilies = new HashSet<String>();
 
                     for (ColumnMapping colMap : columnMappings) {
-                        if (!colMap.hbaseRowKey) {
+                        if (!colMap.hbaseRowKey && !colMap.hbaseTimestamp) {
                             uniqueColumnFamilies.add(colMap.familyName);
                         }
                     }
@@ -218,7 +216,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
                 for (ColumnMapping colMap : columnMappings) {
 
-                    if (colMap.hbaseRowKey) {
+                    if (colMap.hbaseRowKey || colMap.hbaseTimestamp) {
                         continue;
                     }
 
@@ -377,6 +375,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
         // do this for reconciling HBaseStorageHandler for use in HCatalog
         // check to see if this an input job or an outputjob
         if (this.configureInputJobProps) {
+            LOG.info("Configuring input job properties");
             String snapshotName = HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME);
             if (snapshotName != null) {
                 HBaseTableSnapshotInputFormatUtil.assertSupportsTableSnapshots();
@@ -401,8 +400,14 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
                     TableMapReduceUtil.resetCacheConfig(hbaseConf);
                     // copy over configs touched by above method
-                    jobProperties.put(HBASE_OFFHEAP_PCT_KEY, hbaseConf.get(HBASE_OFFHEAP_PCT_KEY));
-                    jobProperties.put(HBASE_BUCKETCACHE_SIZE_KEY, hbaseConf.get(HBASE_BUCKETCACHE_SIZE_KEY));
+                    for (String cacheKey : HBASE_CACHE_KEYS) {
+                        final String value = hbaseConf.get(cacheKey);
+                        if (value != null) {
+                            jobProperties.put(cacheKey, value);
+                        } else {
+                            jobProperties.remove(cacheKey);
+                        }
+                    }
                 } catch (IOException e) {
                     throw new IllegalArgumentException(e);
                 }
@@ -418,6 +423,7 @@ public class HBaseStorageHandler extends DefaultStorageHandler
                 throw new IllegalStateException("Error while configuring input job properties", e);
             } //input job properties
         } else {
+            LOG.info("Configuring output job properties");
             if (isHBaseGenerateHFiles(jobConf)) {
                 // only support bulkload when a hfile.family.path has been specified.
                 // TODO: support detecting cf's from column mapping
@@ -445,9 +451,8 @@ public class HBaseStorageHandler extends DefaultStorageHandler
     /**
      * Utility method to add hbase-default.xml and hbase-site.xml properties to a new map
      * if they are not already present in the jobConf.
-     *
-     * @param jobConf          Job configuration
-     * @param newJobProperties Map to which new properties should be added
+     * @param jobConf Job configuration
+     * @param newJobProperties  Map to which new properties should be added
      */
     private void addHBaseResources(Configuration jobConf,
                                    Map<String, String> newJobProperties) {
@@ -462,11 +467,26 @@ public class HBaseStorageHandler extends DefaultStorageHandler
 
     private void addHBaseDelegationToken(Configuration conf) throws IOException {
         if (User.isHBaseSecurityEnabled(conf)) {
+            HConnection conn = HConnectionManager.createConnection(conf);
             try {
-                User.getCurrent().obtainAuthTokenForJob(conf, new Job(conf));
+                User curUser = User.getCurrent();
+                Job job = new Job(conf);
+                TokenUtil.addTokenForJob(conn, curUser, job);
             } catch (InterruptedException e) {
                 throw new IOException("Error while obtaining hbase delegation token", e);
+            } finally {
+                conn.close();
             }
+        }
+    }
+
+    private static Class counterClass = null;
+
+    static {
+        try {
+            counterClass = Class.forName("org.cliffc.high_scale_lib.Counter");
+        } catch (ClassNotFoundException cnfe) {
+            // this dependency is removed for HBase 1.0
         }
     }
 
@@ -480,9 +500,17 @@ public class HBaseStorageHandler extends DefaultStorageHandler
        * will not be required once Hive bumps up its hbase version). At that time , we will
        * only need TableMapReduceUtil.addDependencyJars(jobConf) here.
        */
-            TableMapReduceUtil.addDependencyJars(
-                    jobConf, HBaseStorageHandler.class, TableInputFormatBase.class,
-                    org.cliffc.high_scale_lib.Counter.class); // this will be removed for HBase 1.0
+            if (counterClass != null) {
+                TableMapReduceUtil.addDependencyJars(
+                        jobConf, HBaseStorageHandler.class, TableInputFormatBase.class, counterClass);
+            } else {
+                TableMapReduceUtil.addDependencyJars(
+                        jobConf, HBaseStorageHandler.class, TableInputFormatBase.class);
+            }
+            if (HiveConf.getVar(jobConf, HiveConf.ConfVars.HIVE_HBASE_SNAPSHOT_NAME) != null) {
+                // There is an extra dependency on MetricsRegistry for snapshot IF.
+                TableMapReduceUtil.addDependencyJars(jobConf, MetricsRegistry.class);
+            }
             Set<String> merged = new LinkedHashSet<String>(jobConf.getStringCollection("tmpjars"));
 
             Job copy = new Job(jobConf);
@@ -513,41 +541,45 @@ public class HBaseStorageHandler extends DefaultStorageHandler
             HBaseSerDe hBaseSerDe,
             ExprNodeDesc predicate) {
         ColumnMapping keyMapping = hBaseSerDe.getHBaseSerdeParam().getKeyColumnMapping();
+        ColumnMapping tsMapping = hBaseSerDe.getHBaseSerdeParam().getTimestampColumnMapping();
         IndexPredicateAnalyzer analyzer = HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(
-                keyMapping.columnName, keyMapping.columnType, keyMapping.binaryStorage.get(0));
+                keyMapping.columnName, keyMapping.isComparable(),
+                tsMapping == null ? null : tsMapping.columnName);
 
         TxHiveTableInputFormatUtil.appendIndexPredicateAnalyzer(
                 analyzer, hBaseSerDe.getHBaseSerdeParam().getColumnMappings(), jobConf);
 
-        List<IndexSearchCondition> searchConditions =
-                new ArrayList<IndexSearchCondition>();
+        List<IndexSearchCondition> conditions = new ArrayList<IndexSearchCondition>();
         ExprNodeGenericFuncDesc residualPredicate =
-                (ExprNodeGenericFuncDesc) analyzer.analyzePredicate(predicate, searchConditions);
-        int scSize = searchConditions.size();
-        if (scSize < 1 || 2 < scSize) {
+                (ExprNodeGenericFuncDesc) analyzer.analyzePredicate(predicate, conditions);
+
+        for (List<IndexSearchCondition> searchConditions :
+                HiveHBaseInputFormatUtil.decompose(conditions).values()) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("decomposePredicate: searchConditions -> " + searchConditions);
             }
-            // Either there was nothing which could be pushed down (size = 0),
-            // there were complex predicates which we don't support yet.
-            // Currently supported are one of the form:
-            // 1. key < 20                        (size = 1)
-            // 2. key = 20                        (size = 1)
-            // 3. key < 20 and key > 10           (size = 2)
-            return null;
-        }
-        if (scSize == 2 &&
-                (searchConditions.get(0).getComparisonOp()
+            int scSize = searchConditions.size();
+            if (scSize < 1 || scSize > 2) {
+                // Either there was nothing which could be pushed down (size = 0),
+                // there were complex predicates which we don't support yet.
+                // Currently supported are one of the form:
+                // 1. key < 20                        (size = 1)
+                // 2. key = 20                        (size = 1)
+                // 3. key < 20 and key > 10           (size = 2)
+                return null;
+            }
+            if (scSize == 2 && (
+                searchConditions.get(0).getComparisonOp()
                         .equals("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual") ||
-                 searchConditions.get(1).getComparisonOp()
-                         .equals("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual"))) {
-            // If one of the predicates is =, then any other predicate with it is illegal.
-            return null;
+                searchConditions.get(1).getComparisonOp()
+                        .equals("org.apache.hadoop.hive.ql.udf.generic.GenericUDFOPEqual"))) {
+                // If one of the predicates is =, then any other predicate with it is illegal.
+                return null;
+            }
         }
 
         DecomposedPredicate decomposedPredicate = new DecomposedPredicate();
-        decomposedPredicate.pushedPredicate = analyzer.translateSearchConditions(
-                searchConditions);
+        decomposedPredicate.pushedPredicate = analyzer.translateSearchConditions(conditions);
         decomposedPredicate.residualPredicate = residualPredicate;
         return decomposedPredicate;
     }

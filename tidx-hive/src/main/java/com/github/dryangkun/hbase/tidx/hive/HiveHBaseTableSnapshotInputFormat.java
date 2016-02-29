@@ -33,7 +33,6 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
 import java.io.IOException;
-import java.util.List;
 
 public class HiveHBaseTableSnapshotInputFormat
     implements InputFormat<ImmutableBytesWritable, ResultWritable> {

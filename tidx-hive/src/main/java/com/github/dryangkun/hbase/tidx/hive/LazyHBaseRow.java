@@ -20,19 +20,15 @@ package com.github.dryangkun.hbase.tidx.hive;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.hbase.client.Result;
 import com.github.dryangkun.hbase.tidx.hive.ColumnMappings.ColumnMapping;
-import com.github.dryangkun.hbase.tidx.hive.struct.HBaseValueFactory;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.lazy.ByteArrayRef;
 import org.apache.hadoop.hive.serde2.lazy.LazyFactory;
-import org.apache.hadoop.hive.serde2.lazy.LazyLong;
 import org.apache.hadoop.hive.serde2.lazy.LazyObjectBase;
 import org.apache.hadoop.hive.serde2.lazy.LazyStruct;
-import org.apache.hadoop.hive.serde2.lazy.LazyTimestamp;
+import org.apache.hadoop.hive.serde2.lazy.objectinspector.LazyMapObjectInspector;
 import org.apache.hadoop.hive.serde2.lazy.objectinspector.LazySimpleStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 
@@ -46,56 +42,47 @@ public class LazyHBaseRow extends LazyStruct {
    * The HBase columns mapping of the row.
    */
   private Result result;
+  private ColumnMapping[] columnsMapping;
   private ArrayList<Object> cachedList;
 
+  private final int iKey;
   private final HBaseKeyFactory keyFactory;
-  private final List<HBaseValueFactory> valueFactories;
-  private final ColumnMapping[] columnsMapping;
 
-  @VisibleForTesting
-  LazyHBaseRow(LazySimpleStructObjectInspector oi, ColumnMappings columnMappings) {
-    super(oi);
-    this.keyFactory = DefaultHBaseKeyFactory.forTest(null, columnMappings);
-    this.valueFactories = null;
-    this.columnsMapping = columnMappings.getColumnsMapping();
+  public LazyHBaseRow(LazySimpleStructObjectInspector oi) {
+    this(oi, -1, null);
   }
 
   /**
    * Construct a LazyHBaseRow object with the ObjectInspector.
    */
-  public LazyHBaseRow(LazySimpleStructObjectInspector oi, HBaseSerDeParameters serdeParams) {
+  public LazyHBaseRow(LazySimpleStructObjectInspector oi, int iKey, HBaseKeyFactory keyFactory) {
     super(oi);
-    this.keyFactory = serdeParams.getKeyFactory();
-    this.valueFactories = serdeParams.getValueFactories();
-    this.columnsMapping = serdeParams.getColumnMappings().getColumnsMapping();
+    this.iKey = iKey;
+    this.keyFactory = keyFactory;
   }
 
   /**
    * Set the HBase row data(a Result writable) for this LazyStruct.
    * @see LazyHBaseRow#init(org.apache.hadoop.hbase.client.Result)
    */
-  public void init(Result r) {
+  public void init(Result r, ColumnMappings columnsMappings) {
     this.result = r;
+    this.columnsMapping = columnsMappings.getColumnsMapping();
     setParsed(false);
   }
 
   @Override
-  protected LazyObjectBase createLazyField(final int fieldID, final StructField fieldRef)
-      throws SerDeException {
-    if (columnsMapping[fieldID].hbaseRowKey) {
+  protected LazyObjectBase createLazyField(int fieldID, StructField fieldRef) throws SerDeException {
+    if (fieldID == iKey) {
       return keyFactory.createKey(fieldRef.getFieldObjectInspector());
     }
-    if (columnsMapping[fieldID].hbaseTimestamp) {
-      return LazyFactory.createLazyObject(fieldRef.getFieldObjectInspector());
+    ColumnMapping colMap = columnsMapping[fieldID];
+    if (colMap.qualifierName == null && !colMap.hbaseRowKey) {
+      // a column family
+      return new LazyHBaseCellMap((LazyMapObjectInspector) fieldRef.getFieldObjectInspector());
     }
-
-    if (valueFactories != null) {
-      return valueFactories.get(fieldID).createValueObject(fieldRef.getFieldObjectInspector());
-    }
-
-    // fallback to default
-    return HBaseSerDeHelper.createLazyField(columnsMapping, fieldID,
-        fieldRef.getFieldObjectInspector());
+    return LazyFactory.createLazyObject(fieldRef.getFieldObjectInspector(),
+        colMap.binaryStorage.get(0));
   }
 
   /**
@@ -130,6 +117,7 @@ public class LazyHBaseRow extends LazyStruct {
    * Get the field out of the row without checking whether parsing is needed.
    * This is called by both getField and getFieldsAsList.
    * @param fieldID  The id of the field starting from 0.
+   * @param nullSequence  The sequence representing NULL value.
    * @return  The value of the field
    */
   private Object uncheckedGetField(int fieldID) {
@@ -138,46 +126,40 @@ public class LazyHBaseRow extends LazyStruct {
     boolean [] fieldsInited = getFieldInited();
 
     if (!fieldsInited[fieldID]) {
-      fieldsInited[fieldID] = true;
-
+      ByteArrayRef ref = null;
       ColumnMapping colMap = columnsMapping[fieldID];
 
-      if (!colMap.hbaseRowKey && !colMap.hbaseTimestamp && colMap.qualifierName == null) {
-        // it is a column family
-        // primitive type for Map<Key, Value> can be stored in binary format. Pass in the
-        // qualifier prefix to cherry pick the qualifiers that match the prefix instead of picking
-        // up everything
-        ((LazyHBaseCellMap) fields[fieldID]).init(
-            result, colMap.familyNameBytes, colMap.binaryStorage, colMap.qualifierPrefixBytes);
-        return fields[fieldID].getObject();
-      }
-
-      if (colMap.hbaseTimestamp) {
-        long timestamp = result.rawCells()[0].getTimestamp(); // from hbase-0.96.0
-        LazyObjectBase lz = fields[fieldID];
-        if (lz instanceof LazyTimestamp) {
-          ((LazyTimestamp) lz).getWritableObject().setTime(timestamp);
-        } else {
-          ((LazyLong) lz).getWritableObject().set(timestamp);
-        }
-        return lz.getObject();
-      }
-
-      byte[] bytes;
       if (colMap.hbaseRowKey) {
-        bytes = result.getRow();
+        ref = new ByteArrayRef();
+        ref.setData(result.getRow());
       } else {
-        // it is a column i.e. a column-family with column-qualifier
-        bytes = result.getValue(colMap.familyNameBytes, colMap.qualifierNameBytes);
+        if (colMap.qualifierName == null) {
+          // it is a column family
+          // primitive type for Map<Key, Value> can be stored in binary format. Pass in the
+          // qualifier prefix to cherry pick the qualifiers that match the prefix instead of picking
+          // up everything
+          ((LazyHBaseCellMap) fields[fieldID]).init(
+              result, colMap.familyNameBytes, colMap.binaryStorage, colMap.qualifierPrefixBytes);
+        } else {
+          // it is a column i.e. a column-family with column-qualifier
+          byte [] res = result.getValue(colMap.familyNameBytes, colMap.qualifierNameBytes);
+
+          if (res == null) {
+            return null;
+          } else {
+            ref = new ByteArrayRef();
+            ref.setData(res);
+          }
+        }
       }
-      if (bytes == null || isNull(oi.getNullSequence(), bytes, 0, bytes.length)) {
-        fields[fieldID].setNull();
-      } else {
-        ByteArrayRef ref = new ByteArrayRef();
-        ref.setData(bytes);
-        fields[fieldID].init(ref, 0, bytes.length);
+
+      if (ref != null) {
+        fields[fieldID].init(ref, 0, ref.getData().length);
       }
     }
+
+    // Has to be set last because of HIVE-3179: NULL fields would not work otherwise
+    fieldsInited[fieldID] = true;
 
     return fields[fieldID].getObject();
   }

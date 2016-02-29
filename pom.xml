@@ -6,7 +6,7 @@
 
   <groupId>com.github.dryangkun</groupId>
   <artifactId>hbase-tidx</artifactId>
-  <version>0.1.0-phoenix4.4-hbase1.1</version>
+  <version>0.1.0-phoenix4.2-hbase0.98</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -15,8 +15,8 @@
   </modules>
 
   <properties>
-    <phoenix.version>4.4.0-HBase-1.1</phoenix.version>
-    <hive.version>1.2.1</hive.version>
+    <phoenix.version>4.2.2</phoenix.version>
+    <hive.version>0.14.0</hive.version>
     <main.basedir>${project.basedir}</main.basedir>
     <java.version>1.7</java.version>
     <java.encoding>UTF-8</java.encoding>
@@ -47,7 +47,7 @@
 
   <profiles>
     <profile>
-      <id>hdp2.3.2</id>
+      <id>hdp2.2.6</id>
       <repositories>
         <repository>
           <id>hortonworks</id>
@@ -56,8 +56,8 @@
       </repositories>
 
       <properties>
-        <phoenix.version>4.4.0.2.3.2.0-2950</phoenix.version>
-        <hive.version>1.2.1.2.3.2.0-2950</hive.version>
+        <phoenix.version>4.2.0.2.2.6.0-2800</phoenix.version>
+        <hive.version>0.14.0.2.2.6.0-2800</hive.version>
       </properties>
     </profile>
   </profiles>

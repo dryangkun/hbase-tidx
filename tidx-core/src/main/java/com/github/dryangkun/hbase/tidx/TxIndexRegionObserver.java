@@ -12,7 +12,6 @@ import org.apache.hadoop.hbase.coprocessor.RegionCoprocessorEnvironment;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.regionserver.HRegion;
 import org.apache.hadoop.hbase.regionserver.RegionScanner;
-import org.apache.hadoop.hbase.regionserver.ScannerContext;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.util.IndexUtil;
@@ -137,28 +136,24 @@ public class TxIndexRegionObserver extends BaseRegionObserver {
                 return s.getMvccReadPoint();
             }
 
-            public int getBatch() {
-                return s.getBatch();
-            }
-
             public boolean nextRaw(List<Cell> result) throws IOException {
                 try {
                     boolean next = s.nextRaw(result);
                     fillDataResult(result, context);
                     return next;
                 } catch (Throwable t) {
-                    ServerUtil.throwIOException(c.getEnvironment().getRegionInfo().getRegionNameAsString(), t);
+                    ServerUtil.throwIOException(c.getEnvironment().getRegion().getRegionNameAsString(), t);
                     return false;
                 }
             }
 
-            public boolean nextRaw(List<Cell> result, ScannerContext scannerContext) throws IOException {
+            public boolean nextRaw(List<Cell> result, int limit) throws IOException {
                 try {
-                    boolean next = s.nextRaw(result, scannerContext);
+                    boolean next = s.nextRaw(result, limit);
                     fillDataResult(result, context);
                     return next;
                 } catch (Throwable t) {
-                    ServerUtil.throwIOException(c.getEnvironment().getRegionInfo().getRegionNameAsString(), t);
+                    ServerUtil.throwIOException(c.getEnvironment().getRegion().getRegionNameAsString(), t);
                     return false;
                 }
             }
@@ -167,16 +162,16 @@ public class TxIndexRegionObserver extends BaseRegionObserver {
                 try {
                     return s.next(result);
                 } catch (Throwable t) {
-                    ServerUtil.throwIOException(c.getEnvironment().getRegionInfo().getRegionNameAsString(), t);
+                    ServerUtil.throwIOException(c.getEnvironment().getRegion().getRegionNameAsString(), t);
                     return false;
                 }
             }
 
-            public boolean next(List<Cell> result, ScannerContext scannerContext) throws IOException {
+            public boolean next(List<Cell> result, int limit) throws IOException {
                 try {
-                    return s.next(result, scannerContext);
+                    return s.next(result, limit);
                 } catch (Throwable t) {
-                    ServerUtil.throwIOException(c.getEnvironment().getRegionInfo().getRegionNameAsString(), t);
+                    ServerUtil.throwIOException(c.getEnvironment().getRegion().getRegionNameAsString(), t);
                     return false;
                 }
             }
