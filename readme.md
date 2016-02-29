@@ -127,3 +127,7 @@ there is success deleting rowkey in data-table, then delete index-table.
 that too complex.
 
 ##setBatch not support when scan idex-table
+
+#Todo
+- more tools: GetPhoenixIndexId, InitDataAndIndexHTable, IndexRebuildMapReduce
+- hive-integration: support "between ... and ..."
