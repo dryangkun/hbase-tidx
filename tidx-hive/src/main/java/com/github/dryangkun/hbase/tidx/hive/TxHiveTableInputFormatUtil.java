@@ -116,7 +116,7 @@ public class TxHiveTableInputFormatUtil {
         return dataGet;
     }
 
-    private static Map<String, List<IndexSearchCondition>> createPredicateConditions(
+    private static Map<String, List<IndexSearchCondition>> createSearchConditions(
             JobConf jobConf, ColumnMappings columnMappings,
             int iTimeColumn, String[] columnNames) throws IOException {
 
@@ -132,21 +132,25 @@ public class TxHiveTableInputFormatUtil {
                 jobConf.get(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE, "string"));
 
         String keyColName = columnNames[iKey];
-        String colType = jobConf.get(serdeConstants.LIST_COLUMN_TYPES).split(",")[iKey];
-        boolean isKeyComparable = isKeyBinary || colType.equalsIgnoreCase("string");
+        String keyColType = jobConf.get(serdeConstants.LIST_COLUMN_TYPES).split(",")[iKey];
+        boolean isKeyComparable = isKeyBinary || keyColType.equalsIgnoreCase("string");
 
         String timeColName = columnNames[iTimeColumn];
         IndexPredicateAnalyzer analyzer =
-                HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(keyColName, isKeyComparable);
+                HiveHBaseTableInputFormat.newIndexPredicateAnalyzer(keyColName, keyColType, isKeyComparable);
         appendIndexPredicateAnalyzer(analyzer, timeColName);
 
-        List<IndexSearchCondition> conditions = new ArrayList<>();
-        ExprNodeDesc residualPredicate = analyzer.analyzePredicate(filterExpr, conditions);
+        List<IndexSearchCondition> searchConditions = new ArrayList<>();
+        ExprNodeDesc residualPredicate = analyzer.analyzePredicate(filterExpr, searchConditions);
 
         if (residualPredicate != null) {
             LOG.debug("Ignoring residual predicate " + residualPredicate.getExprString());
         }
-        return HiveHBaseInputFormatUtil.decompose(conditions);
+        return decomposeSearchConditions(searchConditions);
+    }
+
+    private static Map<String, List<IndexSearchCondition>> decomposeSearchConditions(List<IndexSearchCondition> searchConditions) {
+        return null;
     }
 
     public static List<InputSplit> getSplits(JobConf jobConf, int numSplits,
@@ -155,7 +159,7 @@ public class TxHiveTableInputFormatUtil {
         String[] columnNames = jobConf.get(serdeConstants.LIST_COLUMNS).split(",");
 
         Map<String, List<IndexSearchCondition>> predicateConditions =
-                createPredicateConditions(jobConf, columnMappings, iTimeColumn, columnNames);
+                createSearchConditions(jobConf, columnMappings, iTimeColumn, columnNames);
         if (predicateConditions == null) {
             return null;
         }
@@ -203,11 +207,9 @@ public class TxHiveTableInputFormatUtil {
 
         Configuration conf = HBaseConfiguration.create(jobConf);
         try (HTable indexTable = new HTable(conf, indexTableName)) {
-
             List<Scan> scans = scanBuilder.build(conf, indexTableName.getName());
-            RegionSizeCalculator sizeCalculator =
-                    new RegionSizeCalculator(regionLocator, conn.getAdmin());
-            Pair<byte[][], byte[][]> keys = regionLocator.getStartEndKeys();
+            RegionSizeCalculator sizeCalculator = new RegionSizeCalculator(indexTable);
+            Pair<byte[][], byte[][]> keys = indexTable.getStartEndKeys();
 
             for (int i = 0; i < keys.getFirst().length; i++) {
                 Scan scan = scans.get(i);
@@ -217,7 +219,7 @@ public class TxHiveTableInputFormatUtil {
                 }
 
                 HRegionLocation hregionLocation =
-                        regionLocator.getRegionLocation(keys.getFirst()[i], false);
+                        indexTable.getRegionLocation(keys.getFirst()[i], false);
                 String regionHostname = hregionLocation.getHostname();
                 HRegionInfo regionInfo = hregionLocation.getRegionInfo();
                 long regionSize = sizeCalculator.getRegionSize(regionInfo.getRegionName());
