@@ -120,7 +120,7 @@ public class TxHiveTableInputFormatUtil {
         return dataGet;
     }
 
-    private static Map<String, List<IndexSearchCondition>> createPredicateConditions(
+    private static Map<String, List<IndexSearchCondition>> createSearchConditions(
             JobConf jobConf, ColumnMappings columnMappings,
             int iTimeColumn, String[] columnNames) throws IOException {
 
@@ -136,8 +136,8 @@ public class TxHiveTableInputFormatUtil {
                 jobConf.get(HBaseSerDe.HBASE_TABLE_DEFAULT_STORAGE_TYPE, "string"));
 
         String keyColName = columnNames[iKey];
-        String colType = jobConf.get(serdeConstants.LIST_COLUMN_TYPES).split(",")[iKey];
-        boolean isKeyComparable = isKeyBinary || colType.equalsIgnoreCase("string");
+        String keyColType = jobConf.get(serdeConstants.LIST_COLUMN_TYPES).split(",")[iKey];
+        boolean isKeyComparable = isKeyBinary || keyColType.equalsIgnoreCase("string");
 
         int iTimestamp = columnMappings.getTimestampIndex();
         String tsColName = null;
@@ -165,7 +165,7 @@ public class TxHiveTableInputFormatUtil {
         String[] columnNames = jobConf.get(serdeConstants.LIST_COLUMNS).split(",");
 
         Map<String, List<IndexSearchCondition>> predicateConditions =
-                createPredicateConditions(jobConf, columnMappings, iTimeColumn, columnNames);
+                createSearchConditions(jobConf, columnMappings, iTimeColumn, columnNames);
         if (predicateConditions == null) {
             return null;
         }
