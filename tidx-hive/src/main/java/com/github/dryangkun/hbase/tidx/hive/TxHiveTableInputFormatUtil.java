@@ -163,17 +163,16 @@ public class TxHiveTableInputFormatUtil {
                                          ColumnMappings columnMappings, int iTimeColumn,
                                          String hbaseTableName) throws IOException {
         String[] columnNames = jobConf.get(serdeConstants.LIST_COLUMNS).split(",");
-
-        Map<String, List<IndexSearchCondition>> predicateConditions =
+        Map<String, List<IndexSearchCondition>> searchConditions =
                 createSearchConditions(jobConf, columnMappings, iTimeColumn, columnNames);
-        if (predicateConditions == null) {
+        if (searchConditions == null) {
             return null;
         }
 
         String keyColName = columnNames[columnMappings.getKeyIndex()];
         String timeColName = columnNames[iTimeColumn];
-        List<IndexSearchCondition> keyConditions = predicateConditions.get(keyColName);
-        List<IndexSearchCondition> timeConditions = predicateConditions.get(timeColName);
+        List<IndexSearchCondition> keyConditions = searchConditions.get(keyColName);
+        List<IndexSearchCondition> timeConditions = searchConditions.get(timeColName);
 
         if ((keyConditions != null && !keyConditions.isEmpty()) ||
             (timeConditions == null || timeConditions.isEmpty())) {
@@ -197,7 +196,7 @@ public class TxHiveTableInputFormatUtil {
         List<IndexSearchCondition> tsConditions = null;
         if (columnMappings.getTimestampIndex() != -1) {
             String tsColName = columnNames[columnMappings.getTimestampIndex()];
-            tsConditions = predicateConditions.get(tsColName);
+            tsConditions = searchConditions.get(tsColName);
         }
 
         Get dataGet = createDataGet(jobConf, columnMappings, tsConditions);

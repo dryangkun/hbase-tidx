@@ -39,8 +39,14 @@ create table t1_local_index_0 on t1(t);
 ```
 
 ### Add RegionObserver To The DataTable And IndexTable
-```bash
+get phoenix index id:
 
+```bash
+hbase com.github.dryangkun.hbase.tidx.tool.GetPhoenixIndexId --jdbc-url ... --data-table t1 --index-name t1_local_index_0
+```
+add region observer to data and index hbase table:
+
+```bash
 hbase shell
 # --------add data update region observer--------
 disable 'T1'
@@ -129,5 +135,5 @@ that too complex.
 ##setBatch not support when scan idex-table
 
 #Todo
-- more tools: GetPhoenixIndexId, InitDataAndIndexHTable, IndexRebuildMapReduce
+- more tools: AddRegionObservers
 - hive-integration: support "between ... and ..."

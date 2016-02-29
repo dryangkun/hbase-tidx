@@ -12,6 +12,7 @@ import org.apache.hadoop.hbase.protobuf.generated.ClientProtos;
 import org.apache.hadoop.hbase.util.Base64;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.jdbc.PhoenixEmbeddedDriver;
+import org.apache.phoenix.jdbc.TxPhoenixUtils;
 import org.apache.phoenix.util.MetaDataUtil;
 import org.apache.phoenix.util.PhoenixRuntime;
 
@@ -121,7 +122,7 @@ public class TxUtils {
     }
 
     public static Configuration createConfiguration(String phoenixJdbcUrl) throws SQLException {
-        PhoenixEmbeddedDriver.ConnectionInfo connectionInfo = PhoenixEmbeddedDriver.ConnectionInfo.create(phoenixJdbcUrl);
+        PhoenixEmbeddedDriver.ConnectionInfo connectionInfo = TxPhoenixUtils.createConnectionInfo(phoenixJdbcUrl);
         Configuration conf = HBaseConfiguration.create();
         conf.set(HConstants.ZOOKEEPER_QUORUM, connectionInfo.getZookeeperQuorum());
         if (connectionInfo.getPort() != null) {
