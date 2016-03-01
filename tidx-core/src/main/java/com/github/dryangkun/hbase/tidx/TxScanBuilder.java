@@ -51,9 +51,6 @@ public class TxScanBuilder {
     }
 
     public TxScanBuilder setPhoenixIndexId(short phoenixIndexId) {
-        if (phoenixIndexId < 0) {
-            throw new IllegalArgumentException("phoenix index id invalid - " + phoenixIndexId);
-        }
         this.phoenixIndexId = phoenixIndexId;
         return this;
     }

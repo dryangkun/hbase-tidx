@@ -25,7 +25,7 @@ public class TxScanExample {
 
         scanBuilder.setStartTime(100)
                    .setEndTime(104)
-                   .setPhoenixIndexId((short) 0)
+                   .setPhoenixIndexId((short) -32768)
                    .setDataGet(dataGet);
 
         TableName indexTableName = TxUtils.getIndexTableName("T1".getBytes());

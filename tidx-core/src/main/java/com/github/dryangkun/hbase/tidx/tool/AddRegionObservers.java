@@ -12,6 +12,7 @@ import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.jdbc.PhoenixConnection;
+import org.apache.phoenix.jdbc.TxPhoenixUtils;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.SchemaUtil;
@@ -24,7 +25,7 @@ import java.util.Map;
 
 public class AddRegionObservers {
 
-    public void add(String jdbcUrl, String dataTable, String indexName, String timeCol) throws Exception {
+    public void add(String jdbcUrl, String dataTable, String indexName) throws Exception {
         Class.forName("org.apache.phoenix.jdbc.PhoenixDriver");
         jdbcUrl = ToolUtils.formatPhoenixJdbcUrl(jdbcUrl);
         dataTable = SchemaUtil.normalizeIdentifier(dataTable);
@@ -34,10 +35,14 @@ public class AddRegionObservers {
 
         short phoenixIndexId;
         byte[] dataHTableName;
+        String timeCol;
         try {
             phoenixIndexId = (new GetPhoenixIndexId()).get(conn, dataTable, indexName);
             PTable dataPTable = PhoenixRuntime.getTable(conn, dataTable);
             dataHTableName = dataPTable.getPhysicalName().getBytes();
+
+            PTable indexPTable = TxPhoenixUtils.getLocalIndexPTable(dataPTable, indexName);
+            timeCol = indexPTable.getColumns().get(1).getName().getString();
         } finally {
             if (conn != null) {
                 try { conn.close(); } catch(SQLException e) {}
@@ -52,6 +57,7 @@ public class AddRegionObservers {
         Map<String, String> arguments = new HashMap<>();
         arguments.put(TxConstants.OBSERVER_TIME_COL, timeCol);
         arguments.put(TxConstants.OBSERVER_PHOENIX_INDEX_ID, "" + phoenixIndexId);
+        System.out.println("RegionObserver arguments - " + arguments);
         String className;
 
         HBaseAdmin admin = new HBaseAdmin(conf);
@@ -120,13 +126,11 @@ public class AddRegionObservers {
         options.addOption(ToolUtils.OPTION_JDBC_URL);
         options.addOption(ToolUtils.OPTION_DATA_TABLE);
         options.addOption(ToolUtils.OPTION_INDEX_NAME);
-        options.addOption(null, "time-col", true, "update-time family:qualifier in data table");
         CommandLine commandLine = ToolUtils.parseCommandLine(options, args, AddRegionObservers.class);
 
         String jdbcUrl = commandLine.getOptionValue(ToolUtils.OPTION_JDBC_URL_KEY);
         String dataTable = commandLine.getOptionValue(ToolUtils.OPTION_DATA_TABLE_KEY);
         String indexName = commandLine.getOptionValue(ToolUtils.OPTION_INDEX_NAME_KEY);
-        String timeCol = commandLine.getOptionValue("time-col");
-        (new AddRegionObservers()).add(jdbcUrl, dataTable, indexName, timeCol);
+        (new AddRegionObservers()).add(jdbcUrl, dataTable, indexName);
     }
 }

@@ -40,10 +40,4 @@ public class ToolUtils {
             return PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + jdbcUrl;
         }
     }
-
-    public static void main(String[] args) throws Exception {
-        short id = (new GetPhoenixIndexId())
-                .get("sandbox.hortonworks.com:2181:/hbase-unsecure", "t1", "t1_local_index_2");
-        System.out.println(id);
-    }
 }

@@ -6,6 +6,7 @@ import org.apache.phoenix.query.QueryConstants;
 import org.apache.phoenix.schema.SortOrder;
 import org.apache.phoenix.schema.types.PDecimal;
 import org.apache.phoenix.schema.types.PUnsignedSmallint;
+import org.apache.phoenix.util.MetaDataUtil;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -15,7 +16,7 @@ public class TxIndexRowCodec {
     private final byte[] prefix;
 
     public TxIndexRowCodec(byte[] regionStartKey, byte[] regionEndKey, short phoenixIndexId) {
-        byte[] indexIdBytes = PUnsignedSmallint.INSTANCE.toBytes(phoenixIndexId);
+        byte[] indexIdBytes = MetaDataUtil.getViewIndexIdDataType().toBytes(phoenixIndexId);
         int regionKeyLength = 0;
         if (regionStartKey != null) {
             regionKeyLength = regionStartKey.length != 0 ? regionStartKey.length : regionEndKey.length;

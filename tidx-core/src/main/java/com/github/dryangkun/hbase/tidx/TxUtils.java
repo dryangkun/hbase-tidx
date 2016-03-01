@@ -50,10 +50,10 @@ public class TxUtils {
 
     public static byte[][] parseTimeColumn(Configuration conf, Log logger) throws IOException {
         String timeColumn = conf.get(TxConstants.OBSERVER_TIME_COL);
-        logger.debug("data observer argument " + TxConstants.OBSERVER_TIME_COL +
+        logger.info("observer argument " + TxConstants.OBSERVER_TIME_COL +
                 " = " + timeColumn);
         if (isEmpty(timeColumn)) {
-            throw new IOException("data observer argument " +
+            throw new IOException("observer argument " +
                     TxConstants.OBSERVER_TIME_COL + " missed");
         }
 
@@ -67,10 +67,10 @@ public class TxUtils {
 
     public static short parsePhoenixIndexId(Configuration conf, Log logger) throws IOException {
         String indexIdStr = conf.get(TxConstants.OBSERVER_PHOENIX_INDEX_ID);
-        logger.debug("data observer argument " + TxConstants.OBSERVER_PHOENIX_INDEX_ID +
+        logger.info("observer argument " + TxConstants.OBSERVER_PHOENIX_INDEX_ID +
                 " = " + indexIdStr);
         if (isEmpty(indexIdStr)) {
-            throw new IOException("data observer argument " +
+            throw new IOException("observer argument " +
                     TxConstants.OBSERVER_PHOENIX_INDEX_ID + " missed");
         }
 
