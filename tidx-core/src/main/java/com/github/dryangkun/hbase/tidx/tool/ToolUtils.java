@@ -25,7 +25,7 @@ public class ToolUtils {
             helpFormatter.printHelp(clazz.getName(), options);
             System.exit(1);
         }
-        if (commandLine.hasOption(OPTION_HELP_KEY)) {
+        if (args.length == 0 || commandLine.hasOption(OPTION_HELP_KEY)) {
             HelpFormatter helpFormatter = new HelpFormatter();
             helpFormatter.printHelp(clazz.getName(), options);
             System.exit(0);

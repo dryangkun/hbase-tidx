@@ -50,13 +50,18 @@ add region observer to data and index hbase table:
 hbase shell
 # --------add data update region observer--------
 disable 'T1'
-alter 'T1', 'coprocessor'=>'|com.github.dryangkun.hbase.tidx.TxDataRegionObserver|1001|tx.time.col=0:T,tx.phoenix.index.id=0'
+alter 'T1', 'coprocessor'=>'|com.github.dryangkun.hbase.tidx.TxDataRegionObserver|1001|tx.time.col=0:T,tx.phoenix.index.id=-32768'
 enable 'T1'
 # --------add index scan region observer --------
 disable '_LOCAL_IDX_T1'
-alter '_LOCAL_IDX_T1', 'coprocessor'=>'|com.github.dryangkun.hbase.tidx.TxRegionObserver|1001|tx.time.col=0:T,tx.phoenix.index.id=0'
+alter '_LOCAL_IDX_T1', 'coprocessor'=>'|com.github.dryangkun.hbase.tidx.TxRegionObserver|1001|tx.time.col=0:T,tx.phoenix.index.id=-32768'
 enable '_LOCAL_IDX_T1'
 ```
+or
+
+```bash
+hbase com.github.dryangkun.hbase.tidx.tool.AddRegionObservers --jdbc-url ... --data-table t1 --index-name t1_local_index_0
+
 observer arguments:
 
 - tx.time.col: the update-time's family:qualifier, eg 0:T
@@ -108,7 +113,7 @@ t bigint,
 a string) 
 stored by 'com.github.dryangkun.hbase.tidx.hive.HBaseStorageHandler'
 with serdeproperties ("hbase.columns.mapping"=":key,0:T#b,0:A")
-tblproperties("hbase.table.name"="T1","tx.hive.time.col"="0:T","tx.hive.pidx.id"="0");
+tblproperties("hbase.table.name"="T1","tx.hive.time.col"="0:T","tx.hive.pidx.id"="-32768");
 ```
 other properties is the same with [Hive HBaseIntegration](https://cwiki.apache.org/confluence/display/Hive/HBaseIntegration)
 
@@ -135,5 +140,5 @@ that too complex.
 ##setBatch not support when scan idex-table
 
 #Todo
-- more tools: AddRegionObservers
+- automaticly get phoenix index id
 - hive-integration: support "between ... and ..."
