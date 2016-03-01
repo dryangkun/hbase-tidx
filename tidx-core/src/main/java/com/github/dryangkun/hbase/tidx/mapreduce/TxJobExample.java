@@ -26,7 +26,7 @@ public class TxJobExample {
 
         conf.set(TxConstants.MR_CONF_START_TIME, "100");
         conf.set(TxConstants.MR_CONF_END_TIME, "104");
-        conf.set(TxConstants.MR_CONF_PHOENIX_INDEX_ID, "0");
+        conf.set(TxConstants.MR_CONF_PHOENIX_INDEX_ID, "-32768");
         conf.set(TxConstants.MR_CONF_TIME_CHECK, "true");
         conf.set(TxConstants.MR_CONF_TABLE, TxUtils.getIndexTableName("T1").getNameAsString());
 
