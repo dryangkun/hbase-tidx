@@ -61,6 +61,7 @@ or
 
 ```bash
 hbase com.github.dryangkun.hbase.tidx.tool.AddRegionObservers --jdbc-url ... --data-table t1 --index-name t1_local_index_0
+```
 
 observer arguments:
 
