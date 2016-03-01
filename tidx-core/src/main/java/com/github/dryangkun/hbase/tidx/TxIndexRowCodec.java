@@ -3,9 +3,9 @@ package com.github.dryangkun.hbase.tidx;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.phoenix.query.QueryConstants;
+import org.apache.phoenix.schema.PDataType;
 import org.apache.phoenix.schema.SortOrder;
-import org.apache.phoenix.schema.types.PDecimal;
-import org.apache.phoenix.schema.types.PUnsignedSmallint;
+import org.apache.phoenix.util.MetaDataUtil;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
@@ -33,7 +33,7 @@ public class TxIndexRowCodec {
     }
 
     public byte[] encode(long value, byte[] dataRow) {
-        byte[] valueBytes = PDecimal.INSTANCE.toBytes(new BigDecimal(value));
+        byte[] valueBytes = PDataType.DECIMAL.toBytes(new BigDecimal(value));
         int rowLength = dataRow != null ? dataRow.length : 0;
 
         byte[] indexRow = new byte[prefix.length + valueBytes.length + 1 + rowLength];
@@ -91,9 +91,9 @@ public class TxIndexRowCodec {
         long time;
         {
             _length = _offset - offset - prefix.length;
-            BigDecimal value = (BigDecimal) PDecimal.INSTANCE.toObject(
+            BigDecimal value = (BigDecimal) PDataType.DECIMAL.toObject(
                     row, offset + prefix.length, _length,
-                    PDecimal.INSTANCE, SortOrder.ASC);
+                    PDataType.DECIMAL, SortOrder.ASC);
             time = value.longValue();
         }
 
@@ -121,9 +121,9 @@ public class TxIndexRowCodec {
         }
         int _length = _offset - offset - prefix.length;
 
-        BigDecimal value = (BigDecimal) PDecimal.INSTANCE.toObject(
+        BigDecimal value = (BigDecimal) PDataType.DECIMAL.toObject(
                 row, offset + prefix.length, _length,
-                PDecimal.INSTANCE, SortOrder.ASC);
+                PDataType.DECIMAL, SortOrder.ASC);
         return value.longValue();
     }
 

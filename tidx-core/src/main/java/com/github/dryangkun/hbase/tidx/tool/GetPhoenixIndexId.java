@@ -2,11 +2,9 @@ package com.github.dryangkun.hbase.tidx.tool;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.Options;
-import org.apache.phoenix.index.IndexMaintainer;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.jdbc.TxPhoenixUtils;
 import org.apache.phoenix.schema.PTable;
-import org.apache.phoenix.schema.types.PSmallint;
 import org.apache.phoenix.util.PhoenixRuntime;
 import org.apache.phoenix.util.SchemaUtil;
 
