@@ -138,7 +138,7 @@ there is success deleting rowkey in data-table, then delete index-table.
 ##Don't contains the same rowkey between put and delete in one batch operations
 that too complex.
 
-##setBatch not support when scan idex-table
+##Scan.setBatch not support when scan idex-table
 
 #Todo
 - automaticly get phoenix index id
