@@ -274,10 +274,10 @@ public class TxDataRegionObserver extends BaseRegionObserver {
                 deleteTimeIndex(indexRegion, txPut, indexRowCodec);
 
                 byte[] indexRow = indexRowCodec.encode(TxUtils.getTime(cell), p.getRow());
-                {
-                    byte[] b = indexRowCodec.encode(txPut.getTValue(), txPut.getTRow());
-                    LOG.info("compare " + Bytes.toStringBinary(b) + "@" + txPut.getTTimestamp() +
-                            " to " + Bytes.toStringBinary(indexRow) + "@" + cell.getTimestamp());
+                if (LOG.isDebugEnabled()) {
+                    byte[] oldIndexRow = indexRowCodec.encode(txPut.getTValue(), txPut.getTRow());
+                    LOG.debug("index row: old " + Bytes.toStringBinary(oldIndexRow) + "@" + txPut.getTTimestamp() +
+                            " -- new " + Bytes.toStringBinary(indexRow) + "@" + cell.getTimestamp());
                 }
                 Put indexPut = new Put(indexRow);
                 indexPut.add(
