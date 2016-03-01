@@ -61,6 +61,7 @@ or
 
 ```bash
 hbase com.github.dryangkun.hbase.tidx.tool.AddRegionObservers --jdbc-url ... --data-table t1 --index-name t1_local_index_0
+```
 
 observer arguments:
 
@@ -137,7 +138,7 @@ there is success deleting rowkey in data-table, then delete index-table.
 ##Don't contains the same rowkey between put and delete in one batch operations
 that too complex.
 
-##setBatch not support when scan idex-table
+##Scan.setBatch not support when scan idex-table
 
 #Todo
 - automaticly get phoenix index id
