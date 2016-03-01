@@ -10,9 +10,11 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.phoenix.jdbc.PhoenixConnection;
 import org.apache.phoenix.schema.PTable;
 import org.apache.phoenix.util.PhoenixRuntime;
+import org.apache.phoenix.util.SchemaUtil;
 
 import java.io.IOException;
 import java.sql.DriverManager;
@@ -24,6 +26,10 @@ public class AddRegionObservers {
 
     public void add(String jdbcUrl, String dataTable, String indexName, String timeCol) throws Exception {
         Class.forName("org.apache.phoenix.jdbc.PhoenixDriver");
+        jdbcUrl = ToolUtils.formatPhoenixJdbcUrl(jdbcUrl);
+        dataTable = SchemaUtil.normalizeIdentifier(dataTable);
+        indexName = SchemaUtil.normalizeIdentifier(indexName);
+
         PhoenixConnection conn = (PhoenixConnection) DriverManager.getConnection(jdbcUrl);
 
         short phoenixIndexId;
@@ -51,31 +57,43 @@ public class AddRegionObservers {
         HBaseAdmin admin = new HBaseAdmin(conf);
         try {
             if (admin.isTableEnabled(dataHTableName)) {
+                System.out.println("Start Disable DataTable - " + Bytes.toString(dataHTableName));
                 admin.disableTable(dataHTableName);
                 dataTableDisable = true;
+                System.out.println("Finish Disable DataTable");
             }
 
             HTableDescriptor dataTableDesc = admin.getTableDescriptor(dataHTableName);
             className = TxDataRegionObserver.class.getName();
             if (!dataTableDesc.hasCoprocessor(className)) {
+                System.out.println("Start Add RegionObserver - " + className);
                 dataTableDesc.addCoprocessor(className, null, Coprocessor.PRIORITY_USER, arguments);
                 admin.modifyTable(dataHTableName, dataTableDesc);
                 admin.enableTable(dataHTableName);
                 dataTableDisable = false;
+                System.out.println("Finish Add RegionObserver");
+            } else {
+                System.out.println("DataTable already exists RegionObserver - " + className);
             }
 
             if (admin.isTableEnabled(indexHTableName)) {
+                System.out.println("Start Disable IndexTable - " + Bytes.toString(indexHTableName));
                 admin.disableTable(indexHTableName);
                 indexTableDisable = true;
+                System.out.println("Finish Disable IndexTable");
             }
 
             HTableDescriptor indexTableDesc = admin.getTableDescriptor(indexHTableName);
             className = TxIndexRegionObserver.class.getName();
             if (!indexTableDesc.hasCoprocessor(className)) {
+                System.out.println("Start Add RegionObserver - " + className);
                 indexTableDesc.addCoprocessor(className, null, Coprocessor.PRIORITY_USER, arguments);
                 admin.modifyTable(indexHTableName, indexTableDesc);
                 admin.enableTable(indexHTableName);
                 indexTableDisable = false;
+                System.out.println("Finish Add RegionObserver");
+            } else {
+                System.out.println("IndexTable already exists RegionObserver - " + className);
             }
         } finally {
             if (dataTableDisable) {
@@ -92,7 +110,6 @@ public class AddRegionObservers {
                     e.printStackTrace();
                 }
             }
-
             try { admin.close(); } catch(IOException e) {}
         }
     }

@@ -1,6 +1,7 @@
 package com.github.dryangkun.hbase.tidx.tool;
 
 import org.apache.commons.cli.*;
+import org.apache.phoenix.util.PhoenixRuntime;
 
 public class ToolUtils {
 
@@ -30,5 +31,19 @@ public class ToolUtils {
             System.exit(0);
         }
         return commandLine;
+    }
+
+    public static String formatPhoenixJdbcUrl(String jdbcUrl) {
+        if (jdbcUrl.startsWith(PhoenixRuntime.JDBC_PROTOCOL)) {
+            return jdbcUrl;
+        } else {
+            return PhoenixRuntime.JDBC_PROTOCOL + PhoenixRuntime.JDBC_PROTOCOL_SEPARATOR + jdbcUrl;
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        short id = (new GetPhoenixIndexId())
+                .get("sandbox.hortonworks.com:2181:/hbase-unsecure", "t1", "t1_local_index_2");
+        System.out.println(id);
     }
 }
