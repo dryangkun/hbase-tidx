@@ -35,7 +35,7 @@ If you use other phoenix/hbase/hive, you can edit the pom.xml.
 ### Create Table And Local Index In Phoenix
 ```bash
 create table t1 (key varchar primary key, t unsigned_long, a varchar) VERSIONS=1;
-create table t1_local_index_0 on t1(t);
+create local index t1_local_index_0 on t1(t);
 ```
 
 ### Add RegionObserver To The DataTable And IndexTable
